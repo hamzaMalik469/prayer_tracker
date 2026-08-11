@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "304926805174",
+    "project_id": "prayers-tracker-plus",
+    "storage_bucket": "prayers-tracker-plus.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:304926805174:android:b9af61f199314a170aaa17",
+        "android_client_info": {
+          "package_name": "com.example.prayer_tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTzEaHrEXWRhGPt5MJPddINSmJXlKnGhw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

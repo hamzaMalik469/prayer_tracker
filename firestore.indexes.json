@@ -1,0 +1,30 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "prayer_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "date",   "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "prayer_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",     "order": "ASCENDING" },
+        { "fieldPath": "date",       "order": "DESCENDING" },
+        { "fieldPath": "prayerType", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "qada_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

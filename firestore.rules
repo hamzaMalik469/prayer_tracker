@@ -1,0 +1,103 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ────────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidPrayerType(type) {
+      return type in ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
+    }
+
+    function isValidPrayerStatus(status) {
+      return status in ['notRecorded', 'prayed', 'missed', 'prayedLate'];
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp;
+    }
+
+    function incomingData() {
+      return request.resource.data;
+    }
+
+    // ── User document ───────────────────────────────────────────────────────
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && incomingData().keys().hasAll(['email', 'createdAt'])
+        && incomingData().email is string
+        && isValidTimestamp(incomingData().createdAt);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+
+      // ── Prayer records ────────────────────────────────────────────────────
+
+      match /prayer_records/{recordId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && incomingData().keys().hasAll([
+               'userId', 'date', 'prayerType', 'status',
+               'createdAt', 'updatedAt'
+             ])
+          && incomingData().userId == userId
+          && incomingData().date is string
+          && isValidPrayerType(incomingData().prayerType)
+          && isValidPrayerStatus(incomingData().status)
+          && isValidTimestamp(incomingData().createdAt)
+          && isValidTimestamp(incomingData().updatedAt);
+
+        allow update: if isOwner(userId)
+          && incomingData().userId == userId
+          && isValidPrayerStatus(incomingData().status)
+          && isValidTimestamp(incomingData().updatedAt)
+          // userId and date are immutable after creation
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.date == resource.data.date
+          && request.resource.data.prayerType == resource.data.prayerType;
+
+        allow delete: if isOwner(userId);
+      }
+
+      // ── Qada records ──────────────────────────────────────────────────────
+
+      match /qada_records/{recordId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && incomingData().keys().hasAll([
+               'userId', 'prayerType', 'transactionType',
+               'quantity', 'createdAt'
+             ])
+          && incomingData().userId == userId
+          && isValidPrayerType(incomingData().prayerType)
+          && incomingData().transactionType in ['added', 'completed']
+          && incomingData().quantity is int
+          && incomingData().quantity > 0
+          && isValidTimestamp(incomingData().createdAt);
+
+        // Qada records are immutable once written.
+        allow update: if false;
+        allow delete: if isOwner(userId);
+      }
+
+      // ── Settings ──────────────────────────────────────────────────────────
+
+      match /settings/{document} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId)
+          && document in ['preferences', 'qada_balance'];
+      }
+    }
+  }
+}

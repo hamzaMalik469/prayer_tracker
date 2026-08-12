@@ -1,19 +1,4 @@
-/// Prayer time calculation using adhan_dart.
-///
-/// All adhan_dart imports are isolated to this file.
-/// The Domain layer never sees adhan_dart types.
-///
-/// Verified adhan_dart API (from package source):
-///   - CalculationMethod        → enum (dubai, egyptian, karachi, etc.)
-///   - CalculationMethodParameters → static methods returning CalculationParameters
-///   - CalculationParameters    → class with madhab, highLatitudeRule fields
-///   - HighLatitudeRule         → enum (middleOfTheNight, seventhOfTheNight, twilightAngle)
-///   - Madhab                   → enum (hanafi, shafi)
-///   - PrayerTimes(coordinates, date, calculationParameters) → date is DateTime
-///   - PrayerTimes fields: fajr, sunrise, dhuhr, asr, maghrib, isha (DateTime?)
-///   - Turkey method is named 'turkiye' in adhan_dart
-///   - Morocco method exists in adhan_dart
-library;
+﻿library;
 
 import 'package:adhan_dart/adhan_dart.dart';
 
@@ -44,16 +29,27 @@ final class PrayerTimesLocalDataSourceImpl
   }) {
     try {
       final coordinates = Coordinates(location.latitude, location.longitude);
-      final params = _buildCalculationParameters(settings);
 
-      // PrayerTimes accepts DateTime directly for date parameter.
+      // Build CalculationParameters using verified adhan_dart API.
+      // CalculationMethodParameters has static methods returning CalculationParameters.
+      final params = _buildParams(settings);
+
+      // PrayerTimes accepts a DateTime directly — no DateComponents wrapper.
       final prayerTimes = PrayerTimes(
         coordinates: coordinates,
         date: date,
         calculationParameters: params,
       );
 
-      return _mapToDomainEntity(prayerTimes, date, location);
+      AppLogger.debug(
+        'Calculated prayer times for ${date.year}-${date.month}-${date.day} '
+        'at lat:${location.latitude} lng:${location.longitude} '
+        'method:${settings.calculationMethod.name} '
+        'madhab:${settings.madhab.name}',
+        tag: 'PrayerTimesDS',
+      );
+
+      return _map(prayerTimes, date, location);
     } catch (e, st) {
       AppLogger.error(
         'Prayer time calculation failed',
@@ -68,123 +64,76 @@ final class PrayerTimesLocalDataSourceImpl
     }
   }
 
-  // ── Calculation parameters ────────────────────────────────────────────────
-
-  CalculationParameters _buildCalculationParameters(
-    PrayerSettingsEntity settings,
-  ) {
-    // CalculationMethodParameters has static methods that return
-    // a fully configured CalculationParameters instance.
-    // This is the correct API — not CalculationMethod.x.getParameters().
+  CalculationParameters _buildParams(PrayerSettingsEntity settings) {
+    // Get base parameters from the correct static class.
     final params = _methodToParameters(settings.calculationMethod);
 
-    // Madhab is an enum field on CalculationParameters.
+    // Apply Madhab — affects Asr shadow length.
     params.madhab = switch (settings.madhab) {
       MadhabEntity.hanafi => Madhab.hanafi,
-      MadhabEntity.shafi => Madhab.shafi,
+      MadhabEntity.shafi  => Madhab.shafi,
     };
 
-    // HighLatitudeRule is an enum field on CalculationParameters.
-    // Only override when user has selected a specific rule.
-    // When none is selected, leave the method default in place.
+    // Apply high-latitude rule only when user explicitly sets one.
     if (settings.highLatitudeRule != HighLatitudeRuleEntity.none) {
       params.highLatitudeRule = switch (settings.highLatitudeRule) {
-        HighLatitudeRuleEntity.middleOfTheNight =>
-          HighLatitudeRule.middleOfTheNight,
-        HighLatitudeRuleEntity.seventhOfTheNight =>
-          HighLatitudeRule.seventhOfTheNight,
-        HighLatitudeRuleEntity.twilightAngle => HighLatitudeRule.twilightAngle,
-        HighLatitudeRuleEntity.none =>
-          HighLatitudeRule.middleOfTheNight, // unreachable
+        HighLatitudeRuleEntity.middleOfTheNight  => HighLatitudeRule.middleOfTheNight,
+        HighLatitudeRuleEntity.seventhOfTheNight => HighLatitudeRule.seventhOfTheNight,
+        HighLatitudeRuleEntity.twilightAngle     => HighLatitudeRule.twilightAngle,
+        HighLatitudeRuleEntity.none              => HighLatitudeRule.middleOfTheNight,
       };
     }
 
     return params;
   }
 
-  /// Maps domain [CalculationMethodEntity] to adhan_dart [CalculationParameters]
-  /// using [CalculationMethodParameters] static methods (verified from source).
   CalculationParameters _methodToParameters(CalculationMethodEntity method) {
     return switch (method) {
-      CalculationMethodEntity.muslimWorldLeague =>
-        CalculationMethodParameters.muslimWorldLeague(),
-      CalculationMethodEntity.egyptian =>
-        CalculationMethodParameters.egyptian(),
-      CalculationMethodEntity.karachi => CalculationMethodParameters.karachi(),
-      CalculationMethodEntity.ummAlQura =>
-        CalculationMethodParameters.ummAlQura(),
-      CalculationMethodEntity.dubai => CalculationMethodParameters.dubai(),
-      CalculationMethodEntity.moonsightingCommittee =>
-        CalculationMethodParameters.moonsightingCommittee(),
-      CalculationMethodEntity.northAmerica =>
-        CalculationMethodParameters.northAmerica(),
-      CalculationMethodEntity.kuwait => CalculationMethodParameters.kuwait(),
-      CalculationMethodEntity.qatar => CalculationMethodParameters.qatar(),
-      CalculationMethodEntity.singapore =>
-        CalculationMethodParameters.singapore(),
-      CalculationMethodEntity.tehran => CalculationMethodParameters.tehran(),
-      // adhan_dart uses 'turkiye' spelling for Turkey method.
-      CalculationMethodEntity.turkey => CalculationMethodParameters.turkiye(),
-      // Morocco is present in adhan_dart source.
-      CalculationMethodEntity.morocco => CalculationMethodParameters.morocco(),
-      CalculationMethodEntity.other => CalculationMethodParameters.other(),
+      CalculationMethodEntity.muslimWorldLeague    => CalculationMethodParameters.muslimWorldLeague(),
+      CalculationMethodEntity.egyptian            => CalculationMethodParameters.egyptian(),
+      CalculationMethodEntity.karachi             => CalculationMethodParameters.karachi(),
+      CalculationMethodEntity.ummAlQura           => CalculationMethodParameters.ummAlQura(),
+      CalculationMethodEntity.dubai               => CalculationMethodParameters.dubai(),
+      CalculationMethodEntity.moonsightingCommittee => CalculationMethodParameters.moonsightingCommittee(),
+      CalculationMethodEntity.northAmerica        => CalculationMethodParameters.northAmerica(),
+      CalculationMethodEntity.kuwait              => CalculationMethodParameters.kuwait(),
+      CalculationMethodEntity.qatar               => CalculationMethodParameters.qatar(),
+      CalculationMethodEntity.singapore           => CalculationMethodParameters.singapore(),
+      CalculationMethodEntity.tehran              => CalculationMethodParameters.tehran(),
+      CalculationMethodEntity.turkey              => CalculationMethodParameters.turkiye(),
+      CalculationMethodEntity.morocco             => CalculationMethodParameters.morocco(),
+      CalculationMethodEntity.other               => CalculationMethodParameters.other(),
     };
   }
 
-  // ── Domain entity mapping ─────────────────────────────────────────────────
-
-  DailyPrayerTimesEntity _mapToDomainEntity(
+  DailyPrayerTimesEntity _map(
     PrayerTimes pt,
     DateTime date,
     LocationSettingsEntity location,
   ) {
     final localDate = DateTime(date.year, date.month, date.day);
 
-    DateTime safeTime(DateTime? time, String prayerName) {
+    DateTime safeTime(DateTime? time, String name) {
       if (time == null) {
         AppLogger.warning(
-          'adhan_dart returned null for $prayerName on $localDate. '
-          'Using midnight as fallback.',
+          'adhan_dart returned null for $name on $localDate. Using midnight.',
           tag: 'PrayerTimesDS',
         );
         return localDate;
       }
+      // adhan_dart returns UTC — convert to local.
       return time.toLocal();
     }
 
     return DailyPrayerTimesEntity(
       date: localDate,
-      fajr: PrayerTimeEntity(
-        prayerType: PrayerType.fajr,
-        time: safeTime(pt.fajr, 'Fajr'),
-        date: localDate,
-      ),
-      sunrise: PrayerTimeEntity(
-        prayerType: PrayerType.sunrise,
-        time: safeTime(pt.sunrise, 'Sunrise'),
-        date: localDate,
-      ),
-      dhuhr: PrayerTimeEntity(
-        prayerType: PrayerType.dhuhr,
-        time: safeTime(pt.dhuhr, 'Dhuhr'),
-        date: localDate,
-      ),
-      asr: PrayerTimeEntity(
-        prayerType: PrayerType.asr,
-        time: safeTime(pt.asr, 'Asr'),
-        date: localDate,
-      ),
-      maghrib: PrayerTimeEntity(
-        prayerType: PrayerType.maghrib,
-        time: safeTime(pt.maghrib, 'Maghrib'),
-        date: localDate,
-      ),
-      isha: PrayerTimeEntity(
-        prayerType: PrayerType.isha,
-        time: safeTime(pt.isha, 'Isha'),
-        date: localDate,
-      ),
-      latitude: location.latitude,
+      fajr:    PrayerTimeEntity(prayerType: PrayerType.fajr,    time: safeTime(pt.fajr,    'Fajr'),    date: localDate),
+      sunrise: PrayerTimeEntity(prayerType: PrayerType.sunrise, time: safeTime(pt.sunrise, 'Sunrise'), date: localDate),
+      dhuhr:   PrayerTimeEntity(prayerType: PrayerType.dhuhr,   time: safeTime(pt.dhuhr,   'Dhuhr'),   date: localDate),
+      asr:     PrayerTimeEntity(prayerType: PrayerType.asr,     time: safeTime(pt.asr,     'Asr'),     date: localDate),
+      maghrib: PrayerTimeEntity(prayerType: PrayerType.maghrib, time: safeTime(pt.maghrib, 'Maghrib'), date: localDate),
+      isha:    PrayerTimeEntity(prayerType: PrayerType.isha,    time: safeTime(pt.isha,    'Isha'),    date: localDate),
+      latitude:  location.latitude,
       longitude: location.longitude,
     );
   }

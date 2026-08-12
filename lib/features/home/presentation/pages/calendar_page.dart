@@ -78,9 +78,10 @@ class _CalendarPageState extends State<CalendarPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Calendar')),
+      // appBar: AppBar(title: const Text('Calendar')),
       body: Column(
         children: [
+          SizedBox(height: AppSpacing.md),
           TableCalendar<DailyPrayerSummaryEntity>(
             firstDay: DateTime(2020),
             lastDay: DateTime(2030),

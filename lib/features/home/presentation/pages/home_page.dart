@@ -207,21 +207,21 @@ class _DashboardTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
+    return const CustomScrollView(
       slivers: [
-        const SliverToBoxAdapter(child: DashboardHeader()),
-        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
-        const SliverToBoxAdapter(child: NextPrayerCard()),
-        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
-        const SliverToBoxAdapter(child: TodayProgressCard()),
-        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
-        const SliverToBoxAdapter(child: StreakCard()),
-        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
-        const SliverPadding(
+        SliverToBoxAdapter(child: DashboardHeader()),
+        SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
+        SliverToBoxAdapter(child: NextPrayerCard()),
+        SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
+        SliverToBoxAdapter(child: TodayProgressCard()),
+        SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
+        SliverToBoxAdapter(child: StreakCard()),
+        SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
+        SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
           sliver: SliverToBoxAdapter(child: PrayerCardList()),
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
+        SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
       ],
     );
   }

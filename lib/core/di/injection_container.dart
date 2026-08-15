@@ -4,6 +4,10 @@ library;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get_it/get_it.dart';
+import 'package:prayers_tracker_plus/features/qada/domain/usecases/add_qada_record.dart';
+import 'package:prayers_tracker_plus/features/qada/domain/usecases/complete_qada_record.dart';
+import 'package:prayers_tracker_plus/features/qada/domain/usecases/get_qada_summary.dart';
+import 'package:prayers_tracker_plus/features/qada/domain/usecases/watch_qada_summary.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -54,10 +58,6 @@ import '../../features/prayer_tracking/domain/usecases/watch_daily_summary.dart'
 import '../../features/qada/data/datasources/qada_remote_datasource.dart';
 import '../../features/qada/data/repositories/qada_repository_impl.dart';
 import '../../features/qada/domain/repositories/qada_repository.dart';
-import '../../features/qada/domain/usecases/add_missed_prayers.dart';
-import '../../features/qada/domain/usecases/complete_qada_prayers.dart';
-import '../../features/qada/domain/usecases/get_qada_balance.dart';
-import '../../features/qada/domain/usecases/watch_qada_balance.dart';
 import '../../features/settings/data/datasources/settings_local_datasource.dart';
 import '../../features/settings/data/datasources/settings_remote_datasource.dart';
 import '../../features/settings/data/repositories/settings_repository_impl.dart';
@@ -192,20 +192,15 @@ Future<void> initializeDependencies() async {
 
   // ── Qada ──────────────────────────────────────────────────────────────────
   sl.registerSingleton<QadaRemoteDataSource>(
-    QadaRemoteDataSourceImpl(
-      firestore: sl<FirebaseFirestore>(),
-      uuid: sl<Uuid>(),
-    ),
+    QadaRemoteDataSourceImpl(firestore: sl<FirebaseFirestore>()),
   );
   sl.registerSingleton<QadaRepository>(
     QadaRepositoryImpl(dataSource: sl<QadaRemoteDataSource>()),
   );
-  sl.registerFactory(() => GetQadaBalance(sl<QadaRepository>()));
-  sl.registerFactory(() => WatchQadaBalance(sl<QadaRepository>()));
-  sl.registerFactory(() => AddMissedPrayers(sl<QadaRepository>()));
-  sl.registerFactory(
-    () => CompleteQadaPrayers(sl<QadaRepository>()),
-  );
+  sl.registerFactory(() => GetQadaSummary(sl<QadaRepository>()));
+  sl.registerFactory(() => WatchQadaSummary(sl<QadaRepository>()));
+  sl.registerFactory(() => AddQadaRecord(sl<QadaRepository>()));
+  sl.registerFactory(() => CompleteQadaRecord(sl<QadaRepository>()));
 
   // ── Statistics ────────────────────────────────────────────────────────────
   sl.registerFactory(() => const CalculateStreak());

@@ -1,44 +1,47 @@
-library;
+﻿library;
 
 import '../../../prayer_times/domain/entities/prayer_time_entity.dart';
-import '../entities/qada_balance_entity.dart';
 import '../entities/qada_record_entity.dart';
+import '../entities/qada_summary_entity.dart';
 
 abstract interface class QadaRepository {
-  /// Returns the current Qada balance for [userId].
-  Future<QadaBalanceEntity> getQadaBalance({required String userId});
+  /// Returns all Qada records (pending + completed) for [userId].
+  Future<QadaSummaryEntity> getQadaSummary({required String userId});
 
-  /// Watches the Qada balance in real time.
-  Stream<QadaBalanceEntity> watchQadaBalance({required String userId});
+  /// Watches Qada records in real time.
+  Stream<QadaSummaryEntity> watchQadaSummary({required String userId});
 
-  /// Adds [quantity] missed prayers of [prayerType] to the balance.
-  Future<QadaBalanceEntity> addMissedPrayers({
+  /// Creates a Qada record for a specific missed prayer on a specific date.
+  /// Also ensures the original prayer is marked as Missed.
+  Future<QadaRecordEntity> addQadaRecord({
     required String userId,
+    required DateTime missedDate,
     required PrayerType prayerType,
-    required int quantity,
     String? notes,
   });
 
-  /// Records [quantity] completed Qada prayers of [prayerType].
-  Future<QadaBalanceEntity> completeQadaPrayers({
+  /// Completes a Qada record:
+  ///   1. Updates QadaRecord.status → completed
+  ///   2. Updates original PrayerRecord.status → qadaCompleted
+  /// Returns the updated QadaRecord.
+  Future<QadaRecordEntity> completeQadaRecord({
     required String userId,
+    required String qadaRecordId,
+    required DateTime missedDate,
     required PrayerType prayerType,
-    required int quantity,
-    String? notes,
   });
 
-  /// Returns the full transaction history for [userId].
-  Future<List<QadaRecordEntity>> getQadaHistory({
+  /// Returns all Qada records for a specific date (for calendar display).
+  Future<List<QadaRecordEntity>> getQadaRecordsForDate({
     required String userId,
-    int? limit,
+    required DateTime date,
   });
 
-  /// Returns the daily Qada target (stored in settings).
-  Future<int> getDailyQadaTarget({required String userId});
-
-  /// Saves the daily Qada target.
-  Future<void> saveDailyQadaTarget({
+  /// Deletes a Qada record (if added by mistake).
+  Future<void> deleteQadaRecord({
     required String userId,
-    required int target,
+    required String qadaRecordId,
+    required DateTime missedDate,
+    required PrayerType prayerType,
   });
 }

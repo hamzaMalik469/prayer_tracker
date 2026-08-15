@@ -68,7 +68,7 @@ final class StatisticsRepositoryImpl implements StatisticsRepository {
         .asyncMap((_) => getStreak(userId: userId));
   }
 
-  // ── Private helpers ───────────────────────────────────────────────────────
+  // ── Core computation ──────────────────────────────────────────────────────
 
   PrayerStatisticsEntity _computeStatistics({
     required List<PrayerRecordEntity> records,
@@ -77,24 +77,38 @@ final class StatisticsRepositoryImpl implements StatisticsRepository {
   }) {
     int totalPrayed = 0;
     int totalMissed = 0;
+    int totalLatePrayed = 0;
+    int totalQadaPrayed = 0;
     int totalNotRecorded = 0;
 
     final perPrayerPrayed = <PrayerType, int>{};
+    final perPrayerLatePrayed = <PrayerType, int>{};
     final perPrayerMissed = <PrayerType, int>{};
+    final perPrayerQada = <PrayerType, int>{};
     final perPrayerDays = <PrayerType, int>{};
 
     for (final record in records) {
       final type = record.prayerType;
       perPrayerDays[type] = (perPrayerDays[type] ?? 0) + 1;
 
-      if (record.status.isCompleted) {
-        totalPrayed++;
-        perPrayerPrayed[type] = (perPrayerPrayed[type] ?? 0) + 1;
-      } else if (record.status.isMissed) {
-        totalMissed++;
-        perPrayerMissed[type] = (perPrayerMissed[type] ?? 0) + 1;
-      } else {
-        totalNotRecorded++;
+      switch (record.status) {
+        case PrayerStatus.prayedLate:
+          totalLatePrayed++;
+          perPrayerLatePrayed[type] = (perPrayerLatePrayed[type] ?? 0) + 1;
+        case PrayerStatus.prayed:
+          totalPrayed++;
+          perPrayerPrayed[type] = (perPrayerPrayed[type] ?? 0) + 1;
+
+        case PrayerStatus.missed:
+          totalMissed++;
+          perPrayerMissed[type] = (perPrayerMissed[type] ?? 0) + 1;
+
+        case PrayerStatus.qadaCompleted:
+          totalQadaPrayed++;
+          perPrayerQada[type] = (perPrayerQada[type] ?? 0) + 1;
+
+        case PrayerStatus.notRecorded:
+          totalNotRecorded++;
       }
     }
 
@@ -104,6 +118,8 @@ final class StatisticsRepositoryImpl implements StatisticsRepository {
     for (final type in PrayerTypeExtension.obligatory) {
       final prayed = perPrayerPrayed[type] ?? 0;
       final missed = perPrayerMissed[type] ?? 0;
+      final qada = perPrayerQada[type] ?? 0;
+      final late = perPrayerLatePrayed[type] ?? 0;
       final recorded = perPrayerDays[type] ?? 0;
 
       perPrayerConsistency[type] = PrayerConsistencyEntity(
@@ -111,6 +127,8 @@ final class StatisticsRepositoryImpl implements StatisticsRepository {
         totalDays: days,
         prayedCount: prayed,
         missedCount: missed,
+        qadaCount: qada,
+        latePrayedCount: late,
         notRecordedCount: days - recorded,
       );
     }
@@ -130,6 +148,8 @@ final class StatisticsRepositoryImpl implements StatisticsRepository {
       periodEnd: endDate,
       totalPrayed: totalPrayed,
       totalMissed: totalMissed,
+      totalLatePrayed: totalLatePrayed,
+      totalQadaPrayed: totalQadaPrayed,
       totalNotRecorded: totalNotRecorded,
       totalDays: days,
       currentStreak: 0,
@@ -145,11 +165,9 @@ final class StatisticsRepositoryImpl implements StatisticsRepository {
     required DateTime startDate,
     required DateTime endDate,
   }) {
-    // Group records by date string key.
     final grouped = <String, List<PrayerRecordEntity>>{};
     for (final record in records) {
-      final key =
-          '${record.date.year}-${record.date.month}-${record.date.day}';
+      final key = '${record.date.year}-${record.date.month}-${record.date.day}';
       grouped.putIfAbsent(key, () => []).add(record);
     }
 

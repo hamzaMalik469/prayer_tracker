@@ -7,19 +7,22 @@ import '../../../prayer_times/domain/entities/prayer_time_entity.dart';
 
 /// Per-prayer consistency statistics.
 final class PrayerConsistencyEntity extends Equatable {
-  const PrayerConsistencyEntity({
-    required this.prayerType,
-    required this.totalDays,
-    required this.prayedCount,
-    required this.missedCount,
-    required this.notRecordedCount,
-  });
+  const PrayerConsistencyEntity(
+      {required this.prayerType,
+      required this.totalDays,
+      required this.prayedCount,
+      required this.missedCount,
+      required this.latePrayedCount,
+      required this.notRecordedCount,
+      required this.qadaCount});
 
   final PrayerType prayerType;
   final int totalDays;
   final int prayedCount;
+  final int latePrayedCount;
   final int missedCount;
   final int notRecordedCount;
+  final int qadaCount;
 
   double get consistencyPercentage =>
       totalDays == 0 ? 0 : prayedCount / totalDays;
@@ -41,6 +44,8 @@ final class PrayerStatisticsEntity extends Equatable {
     required this.periodEnd,
     required this.totalPrayed,
     required this.totalMissed,
+    required this.totalLatePrayed,
+    required this.totalQadaPrayed,
     required this.totalNotRecorded,
     required this.totalDays,
     required this.currentStreak,
@@ -54,6 +59,8 @@ final class PrayerStatisticsEntity extends Equatable {
   final DateTime periodEnd;
   final int totalPrayed;
   final int totalMissed;
+  final int totalLatePrayed;
+  final int totalQadaPrayed;
   final int totalNotRecorded;
   final int totalDays;
   final int currentStreak;
@@ -81,6 +88,8 @@ final class PrayerStatisticsEntity extends Equatable {
         periodEnd,
         totalPrayed,
         totalMissed,
+        totalLatePrayed,
+        totalQadaPrayed,
         totalNotRecorded,
         totalDays,
         currentStreak,

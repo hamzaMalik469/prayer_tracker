@@ -1,6 +1,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:prayers_tracker_plus/features/qada/domain/usecases/add_qada_record.dart';
+import 'package:prayers_tracker_plus/features/qada/domain/usecases/complete_qada_record.dart';
+import 'package:prayers_tracker_plus/features/qada/domain/usecases/get_qada_summary.dart';
+import 'package:prayers_tracker_plus/features/qada/domain/usecases/watch_qada_summary.dart';
 import 'package:provider/provider.dart';
 
 import 'core/constants/app_constants.dart';
@@ -43,10 +47,6 @@ import 'features/prayer_tracking/domain/usecases/get_daily_summary.dart';
 import 'features/prayer_tracking/domain/usecases/record_prayer.dart';
 import 'features/prayer_tracking/domain/usecases/watch_daily_summary.dart';
 import 'features/prayer_tracking/presentation/providers/prayer_tracking_provider.dart';
-import 'features/qada/domain/usecases/add_missed_prayers.dart';
-import 'features/qada/domain/usecases/complete_qada_prayers.dart';
-import 'features/qada/domain/usecases/get_qada_balance.dart';
-import 'features/qada/domain/usecases/watch_qada_balance.dart';
 import 'features/qada/presentation/providers/qada_provider.dart';
 import 'features/settings/domain/usecases/get_settings.dart';
 import 'features/settings/domain/usecases/save_location_settings.dart';
@@ -120,10 +120,10 @@ class DailyDeenApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<QadaProvider>(
           create: (_) => QadaProvider(
-            getQadaBalance: sl<GetQadaBalance>(),
-            watchQadaBalance: sl<WatchQadaBalance>(),
-            addMissedPrayers: sl<AddMissedPrayers>(),
-            completeQadaPrayers: sl<CompleteQadaPrayers>(),
+            getQadaSummary: sl<GetQadaSummary>(),
+            watchQadaSummary: sl<WatchQadaSummary>(),
+            addQadaRecord: sl<AddQadaRecord>(),
+            completeQadaRecord: sl<CompleteQadaRecord>(),
           ),
         ),
         ChangeNotifierProvider<StatisticsProvider>(
@@ -142,11 +142,9 @@ class DailyDeenApp extends StatelessWidget {
             repository: sl<NotificationRepository>(),
             getNotificationSettings: sl<GetNotificationSettings>(),
             saveNotificationSettings: sl<SaveNotificationSettings>(),
-            schedulePrayerNotifications:
-                sl<SchedulePrayerNotifications>(),
+            schedulePrayerNotifications: sl<SchedulePrayerNotifications>(),
             cancelAllNotifications: sl<CancelAllNotifications>(),
-            requestNotificationPermission:
-                sl<RequestNotificationPermission>(),
+            requestNotificationPermission: sl<RequestNotificationPermission>(),
           )..initialise(),
         ),
       ],

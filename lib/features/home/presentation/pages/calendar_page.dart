@@ -1,6 +1,7 @@
-library;
+﻿library;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -41,8 +42,8 @@ class _CalendarPageState extends State<CalendarPage> {
     try {
       final startDate = DateTime(_focusedDay.year, _focusedDay.month, 1);
       final endDate = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
-
       final useCase = sl<GetSummariesForRange>();
+
       final summaries = await useCase(
         GetSummariesForRangeParams(
           userId: auth.userId!,
@@ -64,12 +65,36 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  Color? _dayColor(DateTime day) {
+  /// Returns the dot color for a day based on prayer statuses.
+  Color? _dotColor(DateTime day) {
     final summary = _summaries[DateTime(day.year, day.month, day.day)];
     if (summary == null) return null;
-    if (summary.isFullyCompleted) return AppColors.prayedColor;
-    if (summary.hasExplicitMiss) return AppColors.missedColor;
-    if (summary.prayedCount > 0) return AppColors.prayedLateColor;
+
+    final statuses = PrayerTypeExtension.obligatory
+        .map((t) => summary.statusFor(t))
+        .toList();
+
+    // All prayed
+    if (statuses.every((s) => s == PrayerStatus.prayed)) {
+      return AppColors.prayedColor;
+    }
+
+    // All Qada completed
+    if (statuses.every(
+        (s) => s == PrayerStatus.prayed || s == PrayerStatus.qadaCompleted)) {
+      return Colors.teal;
+    }
+
+    // Has any explicit miss
+    if (statuses.any((s) => s == PrayerStatus.missed)) {
+      return AppColors.missedColor;
+    }
+
+    // Has some completed
+    if (statuses.any((s) => s.isCompleted)) {
+      return AppColors.prayedLateColor;
+    }
+
     return null;
   }
 
@@ -78,7 +103,6 @@ class _CalendarPageState extends State<CalendarPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      // appBar: AppBar(title: const Text('Calendar')),
       body: Column(
         children: [
           SizedBox(height: AppSpacing.md),
@@ -87,12 +111,10 @@ class _CalendarPageState extends State<CalendarPage> {
             lastDay: DateTime(2030),
             focusedDay: _focusedDay,
             selectedDayPredicate: (day) => isSameDay(day, _selectedDay),
-            onDaySelected: (selected, focused) {
-              setState(() {
-                _selectedDay = selected;
-                _focusedDay = focused;
-              });
-            },
+            onDaySelected: (selected, focused) => setState(() {
+              _selectedDay = selected;
+              _focusedDay = focused;
+            }),
             onPageChanged: (focusedDay) {
               _focusedDay = focusedDay;
               _loadMonth();
@@ -107,13 +129,10 @@ class _CalendarPageState extends State<CalendarPage> {
                 shape: BoxShape.circle,
               ),
               todayTextStyle: TextStyle(
-                color: colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.w600,
-              ),
+                  color: colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w600),
               selectedTextStyle: TextStyle(
-                color: colorScheme.onPrimary,
-                fontWeight: FontWeight.w600,
-              ),
+                  color: colorScheme.onPrimary, fontWeight: FontWeight.w600),
             ),
             headerStyle: const HeaderStyle(
               formatButtonVisible: false,
@@ -121,7 +140,7 @@ class _CalendarPageState extends State<CalendarPage> {
             ),
             calendarBuilders: CalendarBuilders(
               markerBuilder: (context, day, events) {
-                final color = _dayColor(day);
+                final color = _dotColor(day);
                 if (color == null) return null;
                 return Positioned(
                   bottom: 4,
@@ -137,7 +156,13 @@ class _CalendarPageState extends State<CalendarPage> {
               },
             ),
           ),
+
+          // Legend
+          _Legend(),
+
           const Divider(height: 1),
+
+          // Day detail
           Expanded(
             child: _SelectedDayDetail(
               day: _selectedDay,
@@ -154,6 +179,56 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 }
 
+// ── Legend ────────────────────────────────────────────────────────────────────
+
+class _Legend extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _LegendDot(color: AppColors.prayedColor, label: 'All Prayed'),
+          const SizedBox(width: AppSpacing.md),
+          _LegendDot(color: Colors.teal, label: 'Qada Done'),
+          const SizedBox(width: AppSpacing.md),
+          _LegendDot(color: AppColors.prayedLateColor, label: 'Partial'),
+          const SizedBox(width: AppSpacing.md),
+          _LegendDot(color: AppColors.missedColor, label: 'Missed'),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                )),
+      ],
+    );
+  }
+}
+
+// ── Selected Day Detail ───────────────────────────────────────────────────────
+
 class _SelectedDayDetail extends StatelessWidget {
   const _SelectedDayDetail({required this.day, required this.summary});
 
@@ -164,37 +239,69 @@ class _SelectedDayDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (summary == null) {
-      return Center(
-        child: Text(
-          'No records for this day',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-        ),
-      );
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      children: PrayerTypeExtension.obligatory.map((type) {
-        final status = summary!.statusFor(type);
-        return ListTile(
-          leading: Icon(
-            _iconFor(status),
-            color: _colorFor(status),
-            semanticLabel: status.displayName,
-          ),
-          title: Text(type.displayName),
-          trailing: Text(
-            status.displayName,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: _colorFor(status),
-                  fontWeight: FontWeight.w600,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xs),
+          child: Text(
+            DateFormat('EEEE, d MMMM yyyy').format(day),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
           ),
-        );
-      }).toList(),
+        ),
+        if (summary == null || summary!.records.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Text('No records for this day.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    )),
+          )
+        else
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: PrayerTypeExtension.obligatory.map((type) {
+                final status = summary!.statusFor(type);
+                return ListTile(
+                  leading: Semantics(
+                    label: '${type.displayName}: ${status.displayName}',
+                    child: Icon(
+                      _iconFor(status),
+                      color: _colorFor(status),
+                      size: 24,
+                    ),
+                  ),
+                  title: Text(type.displayName),
+                  subtitle: Text(
+                    type.arabicName,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _colorFor(status).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(AppRadius.full),
+                    ),
+                    child: Text(
+                      status.displayName,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: _colorFor(status),
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+      ],
     );
   }
 
@@ -202,6 +309,7 @@ class _SelectedDayDetail extends StatelessWidget {
         PrayerStatus.prayed => Icons.check_circle_rounded,
         PrayerStatus.prayedLate => Icons.check_circle_outline_rounded,
         PrayerStatus.missed => Icons.cancel_rounded,
+        PrayerStatus.qadaCompleted => Icons.replay_circle_filled_rounded,
         PrayerStatus.notRecorded => Icons.radio_button_unchecked_rounded,
       };
 
@@ -209,6 +317,7 @@ class _SelectedDayDetail extends StatelessWidget {
         PrayerStatus.prayed => AppColors.prayedColor,
         PrayerStatus.prayedLate => AppColors.prayedLateColor,
         PrayerStatus.missed => AppColors.missedColor,
+        PrayerStatus.qadaCompleted => Colors.teal,
         PrayerStatus.notRecorded => AppColors.notRecordedColor,
       };
 }

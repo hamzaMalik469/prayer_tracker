@@ -39,47 +39,50 @@ class PrayerCard extends StatelessWidget {
   final PrayerTimeEntity prayerTime;
 
   String _formatTime(DateTime time) {
-    final h = time.hour % 12 == 0 ? 12 : time.hour % 12;
-    final m = time.minute.toString().padLeft(2, '0');
+    final h      = time.hour % 12 == 0 ? 12 : time.hour % 12;
+    final m      = time.minute.toString().padLeft(2, '0');
     final period = time.hour < 12 ? 'AM' : 'PM';
     return '$h:$m $period';
   }
 
   Color _statusColor(PrayerStatus status) => switch (status) {
-        PrayerStatus.prayed => AppColors.prayedColor,
-        PrayerStatus.prayedLate => AppColors.prayedLateColor,
-        PrayerStatus.missed => AppColors.missedColor,
-        PrayerStatus.notRecorded => AppColors.notRecordedColor,
+        PrayerStatus.prayed        => AppColors.prayedColor,
+        PrayerStatus.prayedLate    => AppColors.prayedLateColor,
+        PrayerStatus.missed        => AppColors.missedColor,
+        PrayerStatus.qadaCompleted => Colors.teal,
+        PrayerStatus.notRecorded   => AppColors.notRecordedColor,
       };
 
   IconData _statusIcon(PrayerStatus status) => switch (status) {
-        PrayerStatus.prayed => Icons.check_circle_rounded,
-        PrayerStatus.prayedLate => Icons.check_circle_outline_rounded,
-        PrayerStatus.missed => Icons.cancel_rounded,
-        PrayerStatus.notRecorded => Icons.radio_button_unchecked_rounded,
+        PrayerStatus.prayed        => Icons.check_circle_rounded,
+        PrayerStatus.prayedLate    => Icons.check_circle_outline_rounded,
+        PrayerStatus.missed        => Icons.cancel_rounded,
+        PrayerStatus.qadaCompleted => Icons.replay_circle_filled_rounded,
+        PrayerStatus.notRecorded   => Icons.radio_button_unchecked_rounded,
       };
 
   String _statusLabel(PrayerStatus status) => switch (status) {
-        PrayerStatus.prayed => 'Prayed',
-        PrayerStatus.prayedLate => 'Prayed Late',
-        PrayerStatus.missed => 'Missed',
-        PrayerStatus.notRecorded => 'Not recorded',
+        PrayerStatus.prayed        => 'Prayed',
+        PrayerStatus.prayedLate    => 'Prayed Late',
+        PrayerStatus.missed        => 'Missed',
+        PrayerStatus.qadaCompleted => 'Qada Completed',
+        PrayerStatus.notRecorded   => 'Not recorded',
       };
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final auth = context.watch<AuthProvider>();
-    final tracking = context.watch<PrayerTrackingProvider>();
+    final auth        = context.watch<AuthProvider>();
+    final tracking    = context.watch<PrayerTrackingProvider>();
 
-    final status = tracking.statusFor(prayerTime.prayerType);
+    final status      = tracking.statusFor(prayerTime.prayerType);
     final isRecording = tracking.isRecordingPrayer(prayerTime.prayerType);
     final statusColor = _statusColor(status);
 
     return Semantics(
       label: '${prayerTime.prayerType.displayName} prayer. '
           '${_statusLabel(status)}. '
-          'Prayer time: ${_formatTime(prayerTime.time)}.',
+          'Time: ${_formatTime(prayerTime.time)}.',
       button: true,
       child: Card(
         child: InkWell(
@@ -88,8 +91,8 @@ class PrayerCard extends StatelessWidget {
               : () async {
                   HapticFeedback.lightImpact();
                   await tracking.togglePrayer(
-                    userId: auth.userId!,
-                    prayerType: prayerTime.prayerType,
+                    userId:      auth.userId!,
+                    prayerType:  prayerTime.prayerType,
                   );
                 },
           onLongPress: isRecording || auth.userId == null
@@ -99,7 +102,7 @@ class PrayerCard extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
-              vertical: AppSpacing.md,
+              vertical:   AppSpacing.md,
             ),
             child: Row(
               children: [
@@ -108,8 +111,7 @@ class PrayerCard extends StatelessWidget {
                   duration: AppDurations.fast,
                   child: isRecording
                       ? SizedBox(
-                          width: 28,
-                          height: 28,
+                          width: 28, height: 28,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
                             color: colorScheme.primary,
@@ -117,23 +119,21 @@ class PrayerCard extends StatelessWidget {
                         )
                       : Icon(
                           _statusIcon(status),
-                          key: ValueKey(status),
+                          key:   ValueKey(status),
                           color: statusColor,
-                          size: 28,
+                          size:  28,
                         ),
                 ),
                 const SizedBox(width: AppSpacing.md),
 
-                // Prayer name
+                // Prayer name + Arabic
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         prayerTime.prayerType.displayName,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
+                        style: Theme.of(context).textTheme.titleSmall
                             ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       Text(
@@ -146,22 +146,20 @@ class PrayerCard extends StatelessWidget {
                   ),
                 ),
 
-                // Time + status
+                // Time + status label
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
                       _formatTime(prayerTime.time),
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
+                      style: Theme.of(context).textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.w500),
                     ),
                     Text(
                       _statusLabel(status),
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: statusColor,
-                            fontWeight: FontWeight.w500,
+                            color:       statusColor,
+                            fontWeight:  FontWeight.w500,
                           ),
                     ),
                   ],
@@ -174,37 +172,40 @@ class PrayerCard extends StatelessWidget {
     );
   }
 
+  // ── Status bottom sheet ───────────────────────────────────────────────────
+
   void _showStatusSheet(
     BuildContext context,
     String userId,
     PrayerTrackingProvider tracking,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
+
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle
+            // Handle bar
             Container(
-              width: 40,
-              height: 4,
+              width: 40, height: 4,
               margin: const EdgeInsets.only(top: AppSpacing.md),
               decoration: BoxDecoration(
                 color: colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(AppRadius.full),
               ),
             ),
+
+            // Header
             Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Row(
                 children: [
                   Text(
                     prayerTime.prayerType.displayName,
-                    style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                    style: Theme.of(ctx).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
@@ -220,42 +221,42 @@ class PrayerCard extends StatelessWidget {
 
             // Prayed
             _StatusOption(
-              icon: Icons.check_circle_rounded,
-              label: 'Prayed',
-              subtitle: 'Marked as completed on time',
-              color: AppColors.prayedColor,
+              icon:     Icons.check_circle_rounded,
+              label:    'Prayed',
+              subtitle: 'Completed on time',
+              color:    AppColors.prayedColor,
               onTap: () {
                 Navigator.pop(ctx);
                 tracking.recordPrayer(
-                  userId: userId,
+                  userId:     userId,
                   prayerType: prayerTime.prayerType,
-                  status: PrayerStatus.prayed,
+                  status:     PrayerStatus.prayed,
                 );
               },
             ),
 
             // Prayed Late
             _StatusOption(
-              icon: Icons.check_circle_outline_rounded,
-              label: 'Prayed Late',
+              icon:     Icons.check_circle_outline_rounded,
+              label:    'Prayed Late',
               subtitle: 'Completed after the prayer window',
-              color: AppColors.prayedLateColor,
+              color:    AppColors.prayedLateColor,
               onTap: () {
                 Navigator.pop(ctx);
                 tracking.recordPrayer(
-                  userId: userId,
+                  userId:     userId,
                   prayerType: prayerTime.prayerType,
-                  status: PrayerStatus.prayedLate,
+                  status:     PrayerStatus.prayedLate,
                 );
               },
             ),
 
-            // Missed — shows Qada dialog
+            // Missed → prompts Qada dialog
             _StatusOption(
-              icon: Icons.cancel_rounded,
-              label: 'Missed',
+              icon:     Icons.cancel_rounded,
+              label:    'Missed',
               subtitle: 'Mark as missed — optionally add to Qada',
-              color: AppColors.missedColor,
+              color:    AppColors.missedColor,
               onTap: () {
                 Navigator.pop(ctx);
                 _handleMissed(context, userId, tracking);
@@ -264,16 +265,16 @@ class PrayerCard extends StatelessWidget {
 
             // Clear
             _StatusOption(
-              icon: Icons.radio_button_unchecked_rounded,
-              label: 'Clear Record',
+              icon:     Icons.radio_button_unchecked_rounded,
+              label:    'Clear Record',
               subtitle: 'Remove the record for this prayer',
-              color: AppColors.notRecordedColor,
+              color:    AppColors.notRecordedColor,
               onTap: () {
                 Navigator.pop(ctx);
                 tracking.recordPrayer(
-                  userId: userId,
+                  userId:     userId,
                   prayerType: prayerTime.prayerType,
-                  status: PrayerStatus.notRecorded,
+                  status:     PrayerStatus.notRecorded,
                 );
               },
             ),
@@ -285,37 +286,37 @@ class PrayerCard extends StatelessWidget {
     );
   }
 
-  /// Marks as missed then asks if user wants to add to Qada.
+  // ── Handle missed → Qada dialog ──────────────────────────────────────────
+
   Future<void> _handleMissed(
     BuildContext context,
     String userId,
     PrayerTrackingProvider tracking,
   ) async {
-    // First record as missed.
+    // 1. Mark as missed in daily tracking.
     await tracking.recordPrayer(
-      userId: userId,
+      userId:     userId,
       prayerType: prayerTime.prayerType,
-      status: PrayerStatus.missed,
+      status:     PrayerStatus.missed,
     );
 
     if (!context.mounted) return;
 
-    // Then ask about Qada.
+    // 2. Ask if user wants to add to Qada.
     final addToQada = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         icon: Icon(
           Icons.replay_rounded,
           color: Theme.of(ctx).colorScheme.primary,
-          size: 32,
+          size: 36,
         ),
-        title: Text(
-          '${prayerTime.prayerType.displayName} Missed',
-        ),
+        title: Text('${prayerTime.prayerType.displayName} Missed'),
         content: Text(
           'Would you like to add this missed '
           '${prayerTime.prayerType.displayName} prayer to your '
-          'Qada balance so you can make it up later?',
+          'Qada list so you can make it up later?\n\n'
+          'It will be saved with today\'s date.',
           textAlign: TextAlign.center,
         ),
         actionsAlignment: MainAxisAlignment.center,
@@ -324,10 +325,9 @@ class PrayerCard extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('No thanks'),
           ),
-          const SizedBox(height: AppSpacing.sm),
           FilledButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.add_rounded),
+            icon:  const Icon(Icons.add_rounded),
             label: const Text('Add to Qada'),
           ),
         ],
@@ -337,12 +337,13 @@ class PrayerCard extends StatelessWidget {
     if (!context.mounted) return;
     if (addToQada != true) return;
 
-    // Add 1 to Qada balance.
-    final qada = context.read<QadaProvider>();
-    final success = await qada.addMissed(
-      userId: userId,
+    // 3. Add to Qada using new date-specific API.
+    final qada    = context.read<QadaProvider>();
+    final today   = DateTime.now();
+    final success = await qada.addQadaRecord(
+      userId:     userId,
+      missedDate: DateTime(today.year, today.month, today.day),
       prayerType: prayerTime.prayerType,
-      quantity: 1,
     );
 
     if (!context.mounted) return;
@@ -350,16 +351,21 @@ class PrayerCard extends StatelessWidget {
     if (success) {
       AppSnackbar.showSuccess(
         context,
-        '${prayerTime.prayerType.displayName} added to Qada balance.',
+        '${prayerTime.prayerType.displayName} added to Qada. '
+        'Make it up from the Qada tab.',
       );
     } else {
       AppSnackbar.showError(
         context,
-        'Could not add to Qada. Please add manually in the Qada tab.',
+        qada.errorMessage ??
+            'Could not add to Qada. Try manually in the Qada tab.',
       );
+      qada.clearError();
     }
   }
 }
+
+// ── Status Option ─────────────────────────────────────────────────────────────
 
 class _StatusOption extends StatelessWidget {
   const _StatusOption({
@@ -371,9 +377,9 @@ class _StatusOption extends StatelessWidget {
   });
 
   final IconData icon;
-  final String label;
-  final String subtitle;
-  final Color color;
+  final String   label;
+  final String   subtitle;
+  final Color    color;
   final VoidCallback onTap;
 
   @override
@@ -382,10 +388,7 @@ class _StatusOption extends StatelessWidget {
       leading: Icon(icon, color: color, size: 28),
       title: Text(
         label,
-        style: TextStyle(
-          fontWeight: FontWeight.w500,
-          color: color,
-        ),
+        style: TextStyle(fontWeight: FontWeight.w600, color: color),
       ),
       subtitle: Text(
         subtitle,
@@ -393,7 +396,7 @@ class _StatusOption extends StatelessWidget {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
       ),
-      onTap: onTap,
+      onTap:             onTap,
       minVerticalPadding: AppSpacing.sm,
     );
   }

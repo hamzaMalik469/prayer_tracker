@@ -6,153 +6,131 @@ import 'package:flutter/foundation.dart';
 
 import '../../../../core/logging/app_logger.dart';
 import '../../../prayer_times/domain/entities/prayer_time_entity.dart';
-import '../../domain/entities/qada_balance_entity.dart';
-import '../../domain/entities/qada_plan_entity.dart';
 import '../../domain/entities/qada_record_entity.dart';
-import '../../domain/usecases/add_missed_prayers.dart';
-import '../../domain/usecases/complete_qada_prayers.dart';
-import '../../domain/usecases/get_qada_balance.dart';
-import '../../domain/usecases/watch_qada_balance.dart';
+import '../../domain/entities/qada_summary_entity.dart';
+import '../../domain/usecases/add_qada_record.dart';
+import '../../domain/usecases/complete_qada_record.dart';
+import '../../domain/usecases/get_qada_summary.dart';
+import '../../domain/usecases/watch_qada_summary.dart';
 
 final class QadaProvider extends ChangeNotifier {
   QadaProvider({
-    required GetQadaBalance getQadaBalance,
-    required WatchQadaBalance watchQadaBalance,
-    required AddMissedPrayers addMissedPrayers,
-    required CompleteQadaPrayers completeQadaPrayers,
-  })  : _getQadaBalance = getQadaBalance,
-        _watchQadaBalance = watchQadaBalance,
-        _addMissedPrayers = addMissedPrayers,
-        _completeQadaPrayers = completeQadaPrayers;
+    required GetQadaSummary getQadaSummary,
+    required WatchQadaSummary watchQadaSummary,
+    required AddQadaRecord addQadaRecord,
+    required CompleteQadaRecord completeQadaRecord,
+  })  : _getQadaSummary     = getQadaSummary,
+        _watchQadaSummary   = watchQadaSummary,
+        _addQadaRecord      = addQadaRecord,
+        _completeQadaRecord = completeQadaRecord;
 
-  final GetQadaBalance _getQadaBalance;
-  final WatchQadaBalance _watchQadaBalance;
-  final AddMissedPrayers _addMissedPrayers;
-  final CompleteQadaPrayers _completeQadaPrayers;
+  final GetQadaSummary     _getQadaSummary;
+  final WatchQadaSummary   _watchQadaSummary;
+  final AddQadaRecord      _addQadaRecord;
+  final CompleteQadaRecord _completeQadaRecord;
 
-  StreamSubscription<QadaBalanceEntity>? _balanceSubscription;
+  StreamSubscription<QadaSummaryEntity>? _subscription;
 
-  QadaBalanceEntity _balance = const QadaBalanceEntity.zero();
-  QadaPlanEntity? _plan;
-  bool _isLoading = false;
-  bool _isUpdating = false;
-  String? _errorMessage;
-  int _dailyTarget = 0;
+  QadaSummaryEntity _summary   = const QadaSummaryEntity.empty();
+  bool              _isLoading = false;
+  bool              _isUpdating = false;
+  String?           _errorMessage;
 
-  QadaBalanceEntity get balance => _balance;
-  QadaPlanEntity? get plan => _plan;
-  bool get isLoading => _isLoading;
-  bool get isUpdating => _isUpdating;
-  String? get errorMessage => _errorMessage;
-  int get dailyTarget => _dailyTarget;
-  bool get hasQada => _balance.total > 0;
+  QadaSummaryEntity get summary      => _summary;
+  bool              get isLoading    => _isLoading;
+  bool              get isUpdating   => _isUpdating;
+  String?           get errorMessage => _errorMessage;
+  bool              get hasPending   => _summary.totalPending > 0;
+  int               get totalPending => _summary.totalPending;
 
   Future<void> initialise({required String userId}) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      _balance = await _getQadaBalance(GetQadaBalanceParams(userId: userId));
+      _summary   = await _getQadaSummary(GetQadaSummaryParams(userId: userId));
       _isLoading = false;
-      _recomputePlan();
       notifyListeners();
 
-      _balanceSubscription = _watchQadaBalance(
-        WatchQadaBalanceParams(userId: userId),
+      _subscription = _watchQadaSummary(
+        WatchQadaSummaryParams(userId: userId),
       ).listen(
-        (balance) {
-          _balance = balance;
-          _recomputePlan();
+        (summary) {
+          _summary = summary;
           notifyListeners();
         },
         onError: (Object e) {
-          AppLogger.warning('Qada balance stream error', error: e, tag: 'QadaProvider');
+          AppLogger.warning('Qada stream error', error: e, tag: 'QadaProvider');
         },
       );
     } catch (e) {
-      AppLogger.error('Failed to load Qada balance', error: e, tag: 'QadaProvider');
-      _isLoading = false;
-      _errorMessage = 'Could not load Qada balance.';
+      AppLogger.error('Failed to load Qada', error: e, tag: 'QadaProvider');
+      _isLoading    = false;
+      _errorMessage = 'Could not load Qada records.';
       notifyListeners();
     }
   }
 
-  Future<bool> addMissed({
+  /// Add a missed prayer to Qada for a specific date.
+  Future<bool> addQadaRecord({
     required String userId,
+    required DateTime missedDate,
     required PrayerType prayerType,
-    required int quantity,
     String? notes,
   }) async {
-    _isUpdating = true;
+    _isUpdating   = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _balance = await _addMissedPrayers(
-        AddMissedPrayersParams(
-          userId: userId,
+      await _addQadaRecord(
+        AddQadaRecordParams(
+          userId:     userId,
+          missedDate: missedDate,
           prayerType: prayerType,
-          quantity: quantity,
-          notes: notes,
+          notes:      notes,
         ),
       );
       _isUpdating = false;
-      _recomputePlan();
       notifyListeners();
       return true;
     } catch (e) {
-      AppLogger.error('Failed to add missed prayers', error: e, tag: 'QadaProvider');
-      _isUpdating = false;
-      _errorMessage = 'Could not add missed prayers.';
+      AppLogger.error('addQadaRecord failed', error: e, tag: 'QadaProvider');
+      _isUpdating   = false;
+      _errorMessage = 'Could not add Qada record.';
       notifyListeners();
       return false;
     }
   }
 
-  Future<bool> completeQada({
+  /// Complete a specific Qada record — updates original prayer to qadaCompleted.
+  Future<bool> completeQadaRecord({
     required String userId,
-    required PrayerType prayerType,
-    required int quantity,
-    String? notes,
+    required QadaRecordEntity record,
   }) async {
-    _isUpdating = true;
+    _isUpdating   = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _balance = await _completeQadaPrayers(
-        CompleteQadaPrayersParams(
-          userId: userId,
-          prayerType: prayerType,
-          quantity: quantity,
-          notes: notes,
+      await _completeQadaRecord(
+        CompleteQadaRecordParams(
+          userId:       userId,
+          qadaRecordId: record.id,
+          missedDate:   record.missedDate,
+          prayerType:   record.prayerType,
         ),
       );
       _isUpdating = false;
-      _recomputePlan();
       notifyListeners();
       return true;
     } catch (e) {
-      AppLogger.error('Failed to complete Qada', error: e, tag: 'QadaProvider');
-      _isUpdating = false;
-      _errorMessage = 'Could not record Qada completion.';
+      AppLogger.error('completeQadaRecord failed', error: e, tag: 'QadaProvider');
+      _isUpdating   = false;
+      _errorMessage = 'Could not complete Qada record.';
       notifyListeners();
       return false;
     }
-  }
-
-  void updateDailyTarget(int target) {
-    _dailyTarget = target;
-    _recomputePlan();
-    notifyListeners();
-  }
-
-  void _recomputePlan() {
-    _plan = QadaPlanEntity.calculate(
-      balance: _balance,
-      dailyTarget: _dailyTarget,
-      fromDate: DateTime.now(),
-    );
   }
 
   void clearError() {
@@ -162,7 +140,7 @@ final class QadaProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    _balanceSubscription?.cancel();
+    _subscription?.cancel();
     super.dispose();
   }
 }

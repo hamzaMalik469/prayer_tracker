@@ -1,219 +1,314 @@
-/// Firestore Qada data source.
-library;
+﻿library;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/firestore_constants.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/extensions/date_time_extensions.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../prayer_times/domain/entities/prayer_time_entity.dart';
-import '../../domain/entities/qada_balance_entity.dart';
+import '../../../prayer_tracking/data/models/prayer_record_model.dart';
+import '../../../prayer_tracking/domain/entities/prayer_record_entity.dart';
 import '../../domain/entities/qada_record_entity.dart';
+import '../../domain/entities/qada_summary_entity.dart';
 import '../models/qada_model.dart';
 
 abstract interface class QadaRemoteDataSource {
-  Future<QadaBalanceEntity> getBalance({required String userId});
-  Stream<QadaBalanceEntity> watchBalance({required String userId});
+  Future<QadaSummaryEntity> getSummary({required String userId});
+  Stream<QadaSummaryEntity> watchSummary({required String userId});
 
-  Future<QadaBalanceEntity> addMissed({
+  Future<QadaRecordEntity> addRecord({
     required String userId,
+    required DateTime missedDate,
     required PrayerType prayerType,
-    required int quantity,
     String? notes,
   });
 
-  Future<QadaBalanceEntity> completeQada({
+  Future<QadaRecordEntity> completeRecord({
     required String userId,
+    required String qadaRecordId,
+    required DateTime missedDate,
     required PrayerType prayerType,
-    required int quantity,
-    String? notes,
   });
 
-  Future<List<QadaRecordEntity>> getHistory({
+  Future<List<QadaRecordEntity>> getRecordsForDate({
     required String userId,
-    int? limit,
+    required DateTime date,
   });
 
-  Future<int> getDailyTarget({required String userId});
-  Future<void> saveDailyTarget({required String userId, required int target});
+  Future<void> deleteRecord({
+    required String userId,
+    required String qadaRecordId,
+    required DateTime missedDate,
+    required PrayerType prayerType,
+  });
 }
 
 final class QadaRemoteDataSourceImpl implements QadaRemoteDataSource {
-  QadaRemoteDataSourceImpl({
-    required FirebaseFirestore firestore,
-    Uuid? uuid,
-  })  : _firestore = firestore,
-        _uuid = uuid ?? const Uuid();
+  const QadaRemoteDataSourceImpl({required FirebaseFirestore firestore})
+      : _firestore = firestore;
 
   final FirebaseFirestore _firestore;
-  final Uuid _uuid;
 
-  DocumentReference<Map<String, dynamic>> _balanceDoc(String userId) =>
-      _firestore
-          .collection(FirestoreCollections.users)
-          .doc(userId)
-          .collection(FirestoreCollections.settings)
-          .doc(FirestoreDocuments.qadaBalance);
-
-  CollectionReference<Map<String, dynamic>> _historyRef(String userId) =>
+  CollectionReference<Map<String, dynamic>> _qadaRef(String userId) =>
       _firestore
           .collection(FirestoreCollections.users)
           .doc(userId)
           .collection(FirestoreCollections.qadaRecords);
 
+  CollectionReference<Map<String, dynamic>> _prayerRef(String userId) =>
+      _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .collection(FirestoreCollections.prayerRecords);
+
   @override
-  Future<QadaBalanceEntity> getBalance({required String userId}) async {
+  Future<QadaSummaryEntity> getSummary({required String userId}) async {
     try {
-      final snap = await _balanceDoc(userId).get();
-      if (!snap.exists || snap.data() == null) {
-        return const QadaBalanceEntity.zero();
-      }
-      return QadaBalanceModel.fromFirestore(snap.data()!);
+      final snap = await _qadaRef(userId).get();
+      return _buildSummary(snap.docs);
     } catch (e) {
-      AppLogger.error('getQadaBalance failed', error: e, tag: 'QadaDS');
-      throw DatabaseFailure(message: 'Failed to load Qada balance.');
+      AppLogger.error('getQadaSummary failed', error: e, tag: 'QadaDS');
+      throw const DatabaseFailure(message: 'Failed to load Qada records.');
     }
   }
 
   @override
-  Stream<QadaBalanceEntity> watchBalance({required String userId}) {
-    return _balanceDoc(userId).snapshots().map((snap) {
-      if (!snap.exists || snap.data() == null) {
-        return const QadaBalanceEntity.zero();
-      }
-      return QadaBalanceModel.fromFirestore(snap.data()!);
-    }).handleError((Object e) {
-      AppLogger.error('watchQadaBalance error', error: e, tag: 'QadaDS');
+  Stream<QadaSummaryEntity> watchSummary({required String userId}) {
+    return _qadaRef(userId).snapshots().map(
+          (snap) => _buildSummary(snap.docs),
+        ).handleError((Object e) {
+      AppLogger.error('watchQadaSummary error', error: e, tag: 'QadaDS');
     });
   }
 
   @override
-  Future<QadaBalanceEntity> addMissed({
+  Future<QadaRecordEntity> addRecord({
     required String userId,
+    required DateTime missedDate,
     required PrayerType prayerType,
-    required int quantity,
     String? notes,
   }) async {
     try {
-      return await _firestore.runTransaction((tx) async {
-        final balanceSnap = await tx.get(_balanceDoc(userId));
-        final currentBalance = balanceSnap.exists && balanceSnap.data() != null
-            ? QadaBalanceModel.fromFirestore(balanceSnap.data()!)
-            : const QadaBalanceEntity.zero();
+      final now        = DateTime.now();
+      final qadaId     = QadaRecordEntity.buildId(
+        userId:     userId,
+        missedDate: missedDate,
+        prayerType: prayerType,
+      );
 
-        final updated = currentBalance.addMissed(prayerType, quantity);
+      final qadaRecord = QadaRecordEntity(
+        id:         qadaId,
+        userId:     userId,
+        missedDate: missedDate,
+        prayerType: prayerType,
+        qadaStatus: QadaStatus.pending,
+        createdAt:  now,
+        updatedAt:  now,
+        notes:      notes,
+      );
 
-        tx.set(_balanceDoc(userId), QadaBalanceModel.toFirestore(updated));
+      // Also ensure the prayer record for that date is marked as missed.
+      final prayerRecordId = PrayerRecordEntity.buildId(
+        userId:     userId,
+        date:       missedDate,
+        prayerType: prayerType,
+      );
 
-        // Write transaction record.
-        final record = QadaRecordEntity(
-          id: _uuid.v4(),
-          userId: userId,
-          prayerType: prayerType,
-          transactionType: QadaTransactionType.added,
-          quantity: quantity,
-          createdAt: DateTime.now(),
-          notes: notes,
+      final prayerRecord = PrayerRecordEntity(
+        id:         prayerRecordId,
+        userId:     userId,
+        date:       missedDate,
+        prayerType: prayerType,
+        status:     PrayerStatus.missed,
+        createdAt:  now,
+        updatedAt:  now,
+      );
+
+      final batch = _firestore.batch();
+
+      // Write Qada record.
+      batch.set(
+        _qadaRef(userId).doc(qadaId),
+        QadaRecordModel.toFirestore(qadaRecord),
+      );
+
+      // Write/update prayer record as missed (only if not already prayed).
+      final existingPrayer = await _prayerRef(userId).doc(prayerRecordId).get();
+      final existingStatus = existingPrayer.exists
+          ? PrayerStatus.values.byName(
+              existingPrayer.data()?['status'] as String? ?? 'notRecorded',
+            )
+          : PrayerStatus.notRecorded;
+
+      // Only mark as missed if not already prayed/qadaCompleted.
+      if (!existingStatus.isCompleted) {
+        batch.set(
+          _prayerRef(userId).doc(prayerRecordId),
+          PrayerRecordModel.toFirestore(prayerRecord),
+          SetOptions(merge: true),
         );
-        tx.set(
-          _historyRef(userId).doc(record.id),
-          QadaRecordModel.toFirestore(record),
-        );
+      }
 
-        return updated;
-      });
+      await batch.commit();
+
+      AppLogger.info(
+        'Qada record added: ${prayerType.identifier} on ${missedDate.toLocalDateString()}',
+        tag: 'QadaDS',
+      );
+
+      return qadaRecord;
     } catch (e) {
-      AppLogger.error('addMissedQada failed', error: e, tag: 'QadaDS');
-      throw DatabaseFailure(message: 'Failed to add missed prayers.');
+      AppLogger.error('addQadaRecord failed', error: e, tag: 'QadaDS');
+      throw const DatabaseFailure(message: 'Failed to add Qada record.');
     }
   }
 
   @override
-  Future<QadaBalanceEntity> completeQada({
+  Future<QadaRecordEntity> completeRecord({
     required String userId,
+    required String qadaRecordId,
+    required DateTime missedDate,
     required PrayerType prayerType,
-    required int quantity,
-    String? notes,
   }) async {
     try {
-      return await _firestore.runTransaction((tx) async {
-        final balanceSnap = await tx.get(_balanceDoc(userId));
-        final currentBalance = balanceSnap.exists && balanceSnap.data() != null
-            ? QadaBalanceModel.fromFirestore(balanceSnap.data()!)
-            : const QadaBalanceEntity.zero();
+      final now = DateTime.now();
 
-        final updated = currentBalance.completeQada(prayerType, quantity);
+      // Build updated Qada record.
+      final qadaDocRef  = _qadaRef(userId).doc(qadaRecordId);
+      final existingDoc = await qadaDocRef.get();
 
-        tx.set(_balanceDoc(userId), QadaBalanceModel.toFirestore(updated));
+      if (!existingDoc.exists) {
+        throw const DatabaseFailure(message: 'Qada record not found.');
+      }
 
-        // Write transaction record.
-        final record = QadaRecordEntity(
-          id: _uuid.v4(),
-          userId: userId,
-          prayerType: prayerType,
-          transactionType: QadaTransactionType.completed,
-          quantity: quantity,
-          createdAt: DateTime.now(),
-          notes: notes,
-        );
-        tx.set(
-          _historyRef(userId).doc(record.id),
-          QadaRecordModel.toFirestore(record),
-        );
+      final existing = QadaRecordModel.fromFirestore(
+        existingDoc.id,
+        existingDoc.data()!,
+      );
 
-        return updated;
-      });
+      final updated = existing.copyWith(
+        qadaStatus:  QadaStatus.completed,
+        updatedAt:   now,
+        completedAt: now,
+      );
+
+      // Also update the original prayer record to qadaCompleted.
+      final prayerRecordId = PrayerRecordEntity.buildId(
+        userId:     userId,
+        date:       missedDate,
+        prayerType: prayerType,
+      );
+
+      final prayerRecord = PrayerRecordEntity(
+        id:         prayerRecordId,
+        userId:     userId,
+        date:       missedDate,
+        prayerType: prayerType,
+        status:     PrayerStatus.qadaCompleted,
+        createdAt:  now,
+        updatedAt:  now,
+      );
+
+      final batch = _firestore.batch();
+
+      batch.set(
+        qadaDocRef,
+        QadaRecordModel.toFirestore(updated),
+      );
+
+      batch.set(
+        _prayerRef(userId).doc(prayerRecordId),
+        PrayerRecordModel.toFirestore(prayerRecord),
+        SetOptions(merge: true),
+      );
+
+      await batch.commit();
+
+      AppLogger.info(
+        'Qada completed: ${prayerType.identifier} on ${missedDate.toLocalDateString()}',
+        tag: 'QadaDS',
+      );
+
+      return updated;
     } catch (e) {
-      AppLogger.error('completeQada failed', error: e, tag: 'QadaDS');
-      throw DatabaseFailure(message: 'Failed to complete Qada prayers.');
+      AppLogger.error('completeQadaRecord failed', error: e, tag: 'QadaDS');
+      throw const DatabaseFailure(message: 'Failed to complete Qada record.');
     }
   }
 
   @override
-  Future<List<QadaRecordEntity>> getHistory({
+  Future<List<QadaRecordEntity>> getRecordsForDate({
     required String userId,
-    int? limit,
+    required DateTime date,
   }) async {
     try {
-      Query<Map<String, dynamic>> query = _historyRef(userId)
-          .orderBy(FirestoreFields.createdAt, descending: true);
-
-      if (limit != null) query = query.limit(limit);
-
-      final snap = await query.get();
+      final dateStr = date.toLocalDateString();
+      final snap    = await _qadaRef(userId)
+          .where('missedDate', isEqualTo: dateStr)
+          .get();
       return snap.docs
           .map((d) => QadaRecordModel.fromFirestore(d.id, d.data()))
           .toList();
     } catch (e) {
-      AppLogger.error('getQadaHistory failed', error: e, tag: 'QadaDS');
-      throw DatabaseFailure(message: 'Failed to load Qada history.');
+      AppLogger.error('getQadaRecordsForDate failed', error: e, tag: 'QadaDS');
+      return [];
     }
   }
 
   @override
-  Future<int> getDailyTarget({required String userId}) async {
-    try {
-      final snap = await _balanceDoc(userId).get();
-      return (snap.data()?['dailyTarget'] as int?) ?? 0;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  @override
-  Future<void> saveDailyTarget({
+  Future<void> deleteRecord({
     required String userId,
-    required int target,
+    required String qadaRecordId,
+    required DateTime missedDate,
+    required PrayerType prayerType,
   }) async {
     try {
-      await _balanceDoc(userId).set(
-        {'dailyTarget': target},
-        SetOptions(merge: true),
+      final batch = _firestore.batch();
+
+      // Delete Qada record.
+      batch.delete(_qadaRef(userId).doc(qadaRecordId));
+
+      // Revert prayer record to missed (if it was qadaCompleted).
+      final prayerRecordId = PrayerRecordEntity.buildId(
+        userId:     userId,
+        date:       missedDate,
+        prayerType: prayerType,
       );
+
+      batch.update(
+        _prayerRef(userId).doc(prayerRecordId),
+        {
+          'status':    PrayerStatus.missed.name,
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        },
+      );
+
+      await batch.commit();
     } catch (e) {
-      AppLogger.error('saveDailyTarget failed', error: e, tag: 'QadaDS');
-      throw DatabaseFailure(message: 'Failed to save daily target.');
+      AppLogger.error('deleteQadaRecord failed', error: e, tag: 'QadaDS');
+      throw const DatabaseFailure(message: 'Failed to delete Qada record.');
     }
+  }
+
+  QadaSummaryEntity _buildSummary(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    final pending   = <QadaRecordEntity>[];
+    final completed = <QadaRecordEntity>[];
+
+    for (final doc in docs) {
+      final record = QadaRecordModel.fromFirestore(doc.id, doc.data());
+      if (record.isPending) {
+        pending.add(record);
+      } else {
+        completed.add(record);
+      }
+    }
+
+    return QadaSummaryEntity(
+      pendingRecords:   pending,
+      completedRecords: completed,
+    );
   }
 }

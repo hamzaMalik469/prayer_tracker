@@ -1,10 +1,11 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:prayers_tracker_plus/features/prayer_times/domain/entities/prayer_time_entity.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../prayer_times/domain/entities/prayer_time_entity.dart';
 import '../../../prayer_times/presentation/providers/next_prayer_provider.dart';
 import '../../../prayer_times/presentation/providers/prayer_times_provider.dart';
 
@@ -40,26 +41,70 @@ class NextPrayerCard extends StatelessWidget {
       return const _CardShell(child: _LoadingContent());
     }
 
-    if (nextPrayer == null) {
+    if (nextPrayer == null || todayTimes == null) {
       return const SizedBox.shrink();
     }
 
-    // Progress through the day.
+    // Current active prayer
+    final now = DateTime.now();
+    final currentPrayer = todayTimes.currentPrayer(now);
+
+    // Day progress
     double progress = 0;
-    if (todayTimes != null) {
-      final totalDaySeconds =
-          todayTimes.isha.time.difference(todayTimes.fajr.time).inSeconds;
-      final elapsedSeconds = DateTime.now()
-          .difference(todayTimes.fajr.time)
-          .inSeconds
-          .clamp(0, totalDaySeconds);
-      progress = totalDaySeconds > 0 ? elapsedSeconds / totalDaySeconds : 0;
-    }
+    final totalDaySeconds =
+        todayTimes.isha.time.difference(todayTimes.fajr.time).inSeconds;
+    final elapsedSeconds = now
+        .difference(todayTimes.fajr.time)
+        .inSeconds
+        .clamp(0, totalDaySeconds);
+    progress = totalDaySeconds > 0 ? elapsedSeconds / totalDaySeconds : 0;
 
     return _CardShell(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Current prayer banner ──────────────────────────────────────
+          if (currentPrayer != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.prayedColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.access_alarm_rounded,
+                    size: 16,
+                    color: AppColors.prayedColor,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Current: ${currentPrayer.prayerType.displayName}',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: AppColors.prayedColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const Spacer(),
+                  if (currentPrayer.endTime != null)
+                    Text(
+                      'Ends ${_formatTime(currentPrayer.endTime!)}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: AppColors.prayedColor,
+                          ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
+          // ── Next prayer ────────────────────────────────────────────────
           Row(
             children: [
               Icon(
@@ -96,9 +141,11 @@ class NextPrayerCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
+
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              // Prayer name + start time + end time
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -109,15 +156,30 @@ class NextPrayerCard extends StatelessWidget {
                         .headlineSmall
                         ?.copyWith(fontWeight: FontWeight.w700),
                   ),
-                  Text(
-                    _formatTime(nextPrayer.time),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                  Row(
+                    children: [
+                      Text(
+                        _formatTime(nextPrayer.time),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                      if (nextPrayer.endTime != null) ...[
+                        Text(
+                          ' — ${_formatTime(nextPrayer.endTime!)}',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
                         ),
+                      ],
+                    ],
                   ),
                 ],
               ),
               const Spacer(),
+
+              // Countdown
               Semantics(
                 label: 'Time remaining: ${_formatDuration(timeRemaining)}',
                 child: Text(
@@ -132,6 +194,8 @@ class NextPrayerCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
+
+          // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(AppRadius.full),
             child: LinearProgressIndicator(
@@ -149,12 +213,10 @@ class NextPrayerCard extends StatelessWidget {
 
 class _CardShell extends StatelessWidget {
   const _CardShell({required this.child});
-
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Card(

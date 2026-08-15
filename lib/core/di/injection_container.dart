@@ -1,17 +1,15 @@
-/// Dependency Injection container — updated for Phase 6.
 library;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get_it/get_it.dart';
-import 'package:prayers_tracker_plus/features/qada/domain/usecases/add_qada_record.dart';
-import 'package:prayers_tracker_plus/features/qada/domain/usecases/complete_qada_record.dart';
-import 'package:prayers_tracker_plus/features/qada/domain/usecases/get_qada_summary.dart';
-import 'package:prayers_tracker_plus/features/qada/domain/usecases/watch_qada_summary.dart';
+import 'package:prayers_tracker_plus/features/prayer_times/data/datasources/prayer_times_custom_datasource.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../logging/app_logger.dart';
+import '../services/local_database_service.dart';
+import '../services/sync_service.dart';
 import '../subscription/feature_access.dart';
 import '../subscription/subscription_domain.dart';
 import '../subscription/subscription_repository_impl.dart';
@@ -48,6 +46,7 @@ import '../../features/prayer_times/data/repositories/prayer_times_repository_im
 import '../../features/prayer_times/domain/repositories/prayer_times_repository.dart';
 import '../../features/prayer_times/domain/usecases/get_next_prayer.dart';
 import '../../features/prayer_times/domain/usecases/get_prayer_times.dart';
+import '../../features/prayer_tracking/data/datasources/prayer_tracking_local_datasource.dart';
 import '../../features/prayer_tracking/data/datasources/prayer_tracking_remote_datasource.dart';
 import '../../features/prayer_tracking/data/repositories/prayer_tracking_repository_impl.dart';
 import '../../features/prayer_tracking/domain/repositories/prayer_tracking_repository.dart';
@@ -55,9 +54,14 @@ import '../../features/prayer_tracking/domain/usecases/get_daily_summary.dart';
 import '../../features/prayer_tracking/domain/usecases/get_summaries_for_range.dart';
 import '../../features/prayer_tracking/domain/usecases/record_prayer.dart';
 import '../../features/prayer_tracking/domain/usecases/watch_daily_summary.dart';
+import '../../features/qada/data/datasources/qada_local_datasource.dart';
 import '../../features/qada/data/datasources/qada_remote_datasource.dart';
 import '../../features/qada/data/repositories/qada_repository_impl.dart';
 import '../../features/qada/domain/repositories/qada_repository.dart';
+import '../../features/qada/domain/usecases/add_qada_record.dart';
+import '../../features/qada/domain/usecases/complete_qada_record.dart';
+import '../../features/qada/domain/usecases/get_qada_summary.dart';
+import '../../features/qada/domain/usecases/watch_qada_summary.dart';
 import '../../features/settings/data/datasources/settings_local_datasource.dart';
 import '../../features/settings/data/datasources/settings_remote_datasource.dart';
 import '../../features/settings/data/repositories/settings_repository_impl.dart';
@@ -78,14 +82,21 @@ final GetIt sl = GetIt.instance;
 Future<void> initializeDependencies() async {
   AppLogger.info('Initialising DI container…', tag: 'DI');
 
-  // ── External ──────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // EXTERNAL SERVICES
+  // ════════════════════════════════════════════════════════════════════════
   final sharedPreferences = await SharedPreferences.getInstance();
   sl.registerSingleton<SharedPreferences>(sharedPreferences);
   sl.registerSingleton<FirebaseAuth>(FirebaseAuth.instance);
   sl.registerSingleton<FirebaseFirestore>(_configureFirestore());
   sl.registerSingleton<Uuid>(const Uuid());
 
-  // ── Core / Subscription ───────────────────────────────────────────────────
+  // Initialise local SQLite database.
+  await LocalDatabaseService.database;
+
+  // ════════════════════════════════════════════════════════════════════════
+  // CORE / SUBSCRIPTION
+  // ════════════════════════════════════════════════════════════════════════
   sl.registerSingleton<FeatureAccessService>(
     const FreeFeatureAccessService(),
   );
@@ -93,7 +104,9 @@ Future<void> initializeDependencies() async {
     const StubSubscriptionRepository(),
   );
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // AUTH
+  // ════════════════════════════════════════════════════════════════════════
   sl.registerSingleton<FirebaseAuthDataSource>(
     FirebaseAuthDataSourceImpl(firebaseAuth: sl<FirebaseAuth>()),
   );
@@ -112,23 +125,21 @@ Future<void> initializeDependencies() async {
   sl.registerFactory(() => SendPasswordReset(sl<AuthRepository>()));
   sl.registerFactory(() => DeleteAccount(sl<AuthRepository>()));
 
-  // ── Onboarding ────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // ONBOARDING
+  // ════════════════════════════════════════════════════════════════════════
   sl.registerSingleton<OnboardingLocalDataSource>(
     OnboardingLocalDataSourceImpl(prefs: sl<SharedPreferences>()),
   );
   sl.registerSingleton<OnboardingRepository>(
-    OnboardingRepositoryImpl(
-      dataSource: sl<OnboardingLocalDataSource>(),
-    ),
+    OnboardingRepositoryImpl(dataSource: sl<OnboardingLocalDataSource>()),
   );
-  sl.registerFactory(
-    () => CheckOnboardingStatus(sl<OnboardingRepository>()),
-  );
-  sl.registerFactory(
-    () => CompleteOnboarding(sl<OnboardingRepository>()),
-  );
+  sl.registerFactory(() => CheckOnboardingStatus(sl<OnboardingRepository>()));
+  sl.registerFactory(() => CompleteOnboarding(sl<OnboardingRepository>()));
 
-  // ── Settings ──────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // SETTINGS
+  // ════════════════════════════════════════════════════════════════════════
   sl.registerSingleton<SettingsLocalDataSource>(
     SettingsLocalDataSourceImpl(prefs: sl<SharedPreferences>()),
   );
@@ -141,83 +152,93 @@ Future<void> initializeDependencies() async {
       remoteDataSource: sl<SettingsRemoteDataSource>(),
     ),
   );
-  sl.registerSingleton<SettingsRepository>(
-    sl<SettingsRepositoryImpl>(),
-  );
+  sl.registerSingleton<SettingsRepository>(sl<SettingsRepositoryImpl>());
   sl.registerFactory(() => GetSettings(sl<SettingsRepository>()));
   sl.registerFactory(() => WatchSettings(sl<SettingsRepository>()));
-  sl.registerFactory(
-    () => SavePrayerSettings(sl<SettingsRepository>()),
-  );
-  sl.registerFactory(
-    () => SaveLocationSettings(sl<SettingsRepository>()),
-  );
+  sl.registerFactory(() => SavePrayerSettings(sl<SettingsRepository>()));
+  sl.registerFactory(() => SaveLocationSettings(sl<SettingsRepository>()));
   sl.registerFactory(() => SaveThemeMode(sl<SettingsRepository>()));
 
-  // ── Prayer Times ──────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // PRAYER TIMES
+  // ════════════════════════════════════════════════════════════════════════
   sl.registerSingleton<PrayerTimesLocalDataSource>(
     const PrayerTimesLocalDataSourceImpl(),
   );
   sl.registerSingleton<PrayerTimesRepository>(
-    PrayerTimesRepositoryImpl(
-      dataSource: sl<PrayerTimesLocalDataSource>(),
-    ),
+    PrayerTimesRepositoryImpl(dataSource: sl<PrayerTimesLocalDataSource>()),
   );
   sl.registerFactory(() => GetPrayerTimes(sl<PrayerTimesRepository>()));
-  sl.registerFactory(
-    () => GetNextPrayer(sl<PrayerTimesRepository>()),
+  sl.registerFactory(() => GetNextPrayer(sl<PrayerTimesRepository>()));
+
+  // ── Custom Prayer Times ──────────────────────────────────────────────────
+  sl.registerSingleton<PrayerTimesCustomDataSource>(
+    PrayerTimesCustomDataSourceImpl(prefs: sl<SharedPreferences>()),
   );
 
-  // ── Prayer Tracking ───────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // PRAYER TRACKING — local + remote
+  // ════════════════════════════════════════════════════════════════════════
+  sl.registerSingleton<PrayerTrackingLocalDataSource>(
+    const PrayerTrackingLocalDataSourceImpl(),
+  );
   sl.registerSingleton<PrayerTrackingRemoteDataSource>(
-    PrayerTrackingRemoteDataSourceImpl(
-      firestore: sl<FirebaseFirestore>(),
-    ),
+    PrayerTrackingRemoteDataSourceImpl(firestore: sl<FirebaseFirestore>()),
   );
   sl.registerSingleton<PrayerTrackingRepository>(
     PrayerTrackingRepositoryImpl(
+      localDataSource: sl<PrayerTrackingLocalDataSource>(),
       remoteDataSource: sl<PrayerTrackingRemoteDataSource>(),
     ),
   );
-  sl.registerFactory(
-    () => GetDailySummary(sl<PrayerTrackingRepository>()),
-  );
-  sl.registerFactory(
-    () => WatchDailySummary(sl<PrayerTrackingRepository>()),
-  );
+  sl.registerFactory(() => GetDailySummary(sl<PrayerTrackingRepository>()));
+  sl.registerFactory(() => WatchDailySummary(sl<PrayerTrackingRepository>()));
   sl.registerFactory(() => RecordPrayer(sl<PrayerTrackingRepository>()));
   sl.registerFactory(
-    () => GetSummariesForRange(sl<PrayerTrackingRepository>()),
-  );
+      () => GetSummariesForRange(sl<PrayerTrackingRepository>()));
 
-  // ── Qada ──────────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // QADA — local + remote
+  // ════════════════════════════════════════════════════════════════════════
+  sl.registerSingleton<QadaLocalDataSource>(
+    const QadaLocalDataSourceImpl(),
+  );
   sl.registerSingleton<QadaRemoteDataSource>(
     QadaRemoteDataSourceImpl(firestore: sl<FirebaseFirestore>()),
   );
   sl.registerSingleton<QadaRepository>(
-    QadaRepositoryImpl(dataSource: sl<QadaRemoteDataSource>()),
+    QadaRepositoryImpl(
+      localDataSource: sl<QadaLocalDataSource>(),
+      remoteDataSource: sl<QadaRemoteDataSource>(),
+    ),
   );
   sl.registerFactory(() => GetQadaSummary(sl<QadaRepository>()));
   sl.registerFactory(() => WatchQadaSummary(sl<QadaRepository>()));
   sl.registerFactory(() => AddQadaRecord(sl<QadaRepository>()));
   sl.registerFactory(() => CompleteQadaRecord(sl<QadaRepository>()));
 
-  // ── Statistics ────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // STATISTICS — reads from PrayerTrackingRepository (local-first)
+  // ════════════════════════════════════════════════════════════════════════
   sl.registerFactory(() => const CalculateStreak());
   sl.registerSingleton<StatisticsRepository>(
     StatisticsRepositoryImpl(
-      prayerDataSource: sl<PrayerTrackingRemoteDataSource>(),
+      localDataSource: sl<PrayerTrackingLocalDataSource>(),
+      remoteDataSource: sl<PrayerTrackingRemoteDataSource>(),
       calculateStreak: sl<CalculateStreak>(),
     ),
   );
   sl.registerFactory(() => GetStreak(sl<StatisticsRepository>()));
   sl.registerFactory(() => GetStatistics(sl<StatisticsRepository>()));
-
-  // ── Hijri ─────────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // HIJRI
+  // ════════════════════════════════════════════════════════════════════════
   sl.registerSingleton<HijriRepository>(const HijriRepositoryImpl());
   sl.registerFactory(() => GetHijriDate(sl<HijriRepository>()));
 
-  // ── Notifications ─────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // NOTIFICATIONS
+  // ════════════════════════════════════════════════════════════════════════
   sl.registerSingleton<NotificationLocalDataSource>(
     NotificationLocalDataSourceImpl(),
   );
@@ -231,19 +252,26 @@ Future<void> initializeDependencies() async {
     ),
   );
   sl.registerFactory(
-    () => GetNotificationSettings(sl<NotificationRepository>()),
-  );
+      () => GetNotificationSettings(sl<NotificationRepository>()));
   sl.registerFactory(
-    () => SaveNotificationSettings(sl<NotificationRepository>()),
-  );
+      () => SaveNotificationSettings(sl<NotificationRepository>()));
   sl.registerFactory(
-    () => SchedulePrayerNotifications(sl<NotificationRepository>()),
-  );
+      () => SchedulePrayerNotifications(sl<NotificationRepository>()));
   sl.registerFactory(
-    () => CancelAllNotifications(sl<NotificationRepository>()),
-  );
+      () => CancelAllNotifications(sl<NotificationRepository>()));
   sl.registerFactory(
-    () => RequestNotificationPermission(sl<NotificationRepository>()),
+      () => RequestNotificationPermission(sl<NotificationRepository>()));
+
+  // ════════════════════════════════════════════════════════════════════════
+  // SYNC SERVICE
+  // ════════════════════════════════════════════════════════════════════════
+  sl.registerSingleton<SyncService>(
+    SyncService(
+      localPrayer: sl<PrayerTrackingLocalDataSource>(),
+      remotePrayer: sl<PrayerTrackingRemoteDataSource>(),
+      localQada: sl<QadaLocalDataSource>(),
+      remoteQada: sl<QadaRemoteDataSource>(),
+    ),
   );
 
   AppLogger.info('DI container initialised.', tag: 'DI');

@@ -1,4 +1,3 @@
-/// All prayer times for a single day.
 library;
 
 import 'package:equatable/equatable.dart';
@@ -29,25 +28,11 @@ final class DailyPrayerTimesEntity extends Equatable {
   final double longitude;
 
   /// All six prayer/auxiliary times in chronological order.
-  List<PrayerTimeEntity> get all => [
-        fajr,
-        sunrise,
-        dhuhr,
-        asr,
-        maghrib,
-        isha,
-      ];
+  List<PrayerTimeEntity> get all => [fajr, sunrise, dhuhr, asr, maghrib, isha];
 
   /// The five obligatory prayers in order.
-  List<PrayerTimeEntity> get obligatory => [
-        fajr,
-        dhuhr,
-        asr,
-        maghrib,
-        isha,
-      ];
+  List<PrayerTimeEntity> get obligatory => [fajr, dhuhr, asr, maghrib, isha];
 
-  /// Returns the prayer time for [type].
   PrayerTimeEntity forType(PrayerType type) => switch (type) {
         PrayerType.fajr => fajr,
         PrayerType.sunrise => sunrise,
@@ -57,8 +42,7 @@ final class DailyPrayerTimesEntity extends Equatable {
         PrayerType.isha => isha,
       };
 
-  /// Returns the next prayer after [now], or null if all prayers
-  /// for this day have passed.
+  /// Returns the next prayer after [now], or null if all have passed.
   PrayerTimeEntity? nextPrayerAfter(DateTime now) {
     for (final prayer in all) {
       if (prayer.time.isAfter(now)) return prayer;
@@ -66,9 +50,18 @@ final class DailyPrayerTimesEntity extends Equatable {
     return null;
   }
 
-  /// Returns the current active prayer (the most recent one whose
-  /// time has passed), or null before Fajr.
+  /// Returns the currently active prayer (the one whose window is open).
   PrayerTimeEntity? currentPrayer(DateTime now) {
+    // Check obligatory prayers in reverse — the latest one whose
+    // start time has passed and end time has not is the active one.
+    for (final prayer in obligatory.reversed) {
+      if (prayer.isActive(now)) return prayer;
+    }
+    return null;
+  }
+
+  /// Returns the most recent prayer whose start time has passed.
+  PrayerTimeEntity? lastStartedPrayer(DateTime now) {
     PrayerTimeEntity? current;
     for (final prayer in all) {
       if (!prayer.time.isAfter(now)) {
@@ -76,6 +69,31 @@ final class DailyPrayerTimesEntity extends Equatable {
       }
     }
     return current;
+  }
+
+  /// Returns a copy with end times computed from the prayer sequence.
+  ///
+  /// Prayer window logic:
+  ///   Fajr    → ends at Sunrise
+  ///   Sunrise → no window (not a prayer)
+  ///   Dhuhr   → ends at Asr
+  ///   Asr     → ends at Maghrib
+  ///   Maghrib → ends at Isha
+  ///   Isha    → ends at next day Fajr (passed as [nextDayFajr])
+  DailyPrayerTimesEntity withEndTimes({DateTime? nextDayFajr}) {
+    return DailyPrayerTimesEntity(
+      date: date,
+      fajr: fajr.copyWith(endTime: sunrise.time),
+      sunrise: sunrise, // no end time — not a prayer
+      dhuhr: dhuhr.copyWith(endTime: asr.time),
+      asr: asr.copyWith(endTime: maghrib.time),
+      maghrib: maghrib.copyWith(endTime: isha.time),
+      isha: isha.copyWith(
+        endTime: nextDayFajr ?? date.add(const Duration(days: 1)),
+      ),
+      latitude: latitude,
+      longitude: longitude,
+    );
   }
 
   @override

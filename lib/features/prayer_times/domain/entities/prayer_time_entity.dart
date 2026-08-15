@@ -1,11 +1,9 @@
-/// A single calculated prayer time.
 library;
 
 import 'package:equatable/equatable.dart';
 
 import '../../../../core/constants/app_constants.dart';
 
-/// Identifies one of the five obligatory prayers or auxiliary times.
 enum PrayerType {
   fajr,
   sunrise,
@@ -43,10 +41,8 @@ extension PrayerTypeExtension on PrayerType {
         PrayerType.isha => 'العشاء',
       };
 
-  /// Returns true for the five obligatory prayers (excludes Sunrise).
   bool get isObligatory => this != PrayerType.sunrise;
 
-  /// Returns the five obligatory prayers in order.
   static List<PrayerType> get obligatory => [
         PrayerType.fajr,
         PrayerType.dhuhr,
@@ -57,21 +53,60 @@ extension PrayerTypeExtension on PrayerType {
 }
 
 /// A single prayer time for a given day.
+/// Now includes [endTime] — the time this prayer window closes.
 final class PrayerTimeEntity extends Equatable {
   const PrayerTimeEntity({
     required this.prayerType,
     required this.time,
     required this.date,
+    this.endTime,
+    this.isCustom = false,
   });
 
   final PrayerType prayerType;
 
-  /// The calculated prayer time in local time.
+  /// The start time of this prayer window (local time).
   final DateTime time;
 
-  /// The calendar date this prayer time belongs to.
+  /// The end time of this prayer window (local time).
+  /// Null only for sunrise (not a prayer window).
+  final DateTime? endTime;
+
+  /// The calendar date this prayer belongs to.
   final DateTime date;
 
+  /// True when the user has overridden this prayer time.
+  final bool isCustom;
+
+  /// Returns true when [now] falls within this prayer's window.
+  bool isActive(DateTime now) {
+    if (endTime == null) return false;
+    return now.isAfter(time) && now.isBefore(endTime!);
+  }
+
+  /// Returns true when this prayer time has not arrived yet.
+  bool isUpcoming(DateTime now) => now.isBefore(time);
+
+  /// Returns true when this prayer window has already passed.
+  bool hasPassed(DateTime now) {
+    if (endTime == null) return now.isAfter(time);
+    return now.isAfter(endTime!);
+  }
+
+  PrayerTimeEntity copyWith({
+    DateTime? time,
+    DateTime? endTime,
+    bool? isCustom,
+  }) {
+    return PrayerTimeEntity(
+      prayerType: prayerType,
+      time: time ?? this.time,
+      endTime: endTime ?? this.endTime,
+      date: date,
+      isCustom: isCustom ?? this.isCustom,
+    );
+  }
+
   @override
-  List<Object> get props => [prayerType, time, date];
+  List<Object?> get props => [prayerType, time, endTime, date, isCustom];
 }

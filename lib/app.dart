@@ -6,6 +6,7 @@ import 'package:prayers_tracker_plus/features/qada/domain/usecases/complete_qada
 import 'package:prayers_tracker_plus/features/qada/domain/usecases/get_qada_summary.dart';
 import 'package:prayers_tracker_plus/features/qada/domain/usecases/watch_qada_summary.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/di/injection_container.dart';
@@ -84,6 +85,7 @@ class DailyDeenApp extends StatelessWidget {
             signOut: sl<SignOut>(),
             sendPasswordReset: sl<SendPasswordReset>(),
             deleteAccount: sl<DeleteAccount>(),
+            prefs: sl<SharedPreferences>(), // NEW
           )..initialise(),
         ),
         ChangeNotifierProvider<OnboardingProvider>(

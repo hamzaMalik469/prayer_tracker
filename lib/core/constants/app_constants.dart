@@ -48,17 +48,31 @@ abstract final class PrayerIdentifiers {
 }
 
 abstract final class PreferenceKeys {
+  // Onboarding
   static const String onboardingCompleted = 'onboarding_completed';
+
+  // Location
   static const String locationMode = 'location_mode';
   static const String lastLatitude = 'last_latitude';
   static const String lastLongitude = 'last_longitude';
   static const String manualCityName = 'manual_city_name';
+
+  // Prayer settings
   static const String calculationMethod = 'calculation_method';
   static const String madhab = 'madhab';
   static const String highLatitudeRule = 'high_latitude_rule';
+
+  // Appearance
   static const String themeMode = 'theme_mode';
+
+  // Subscription cache
   static const String subscriptionStatusCache = 'subscription_status_cache';
+
+  // Notifications
   static const String notificationsEnabled = 'notifications_master_enabled';
+
+  // Guest user — NEW
+  static const String guestUserId = 'guest_user_id';
 }
 
 abstract final class AppRoutes {

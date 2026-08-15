@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:prayers_tracker_plus/features/settings/presentation/pages/custom_prayer_times_page.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -115,6 +116,17 @@ class _SettingsBody extends StatelessWidget {
               if (!context.mounted) return;
               AppSnackbar.showSuccess(context, 'High latitude rule updated.');
             },
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.edit_calendar_rounded),
+          title: const Text('Custom Prayer Times'),
+          subtitle: const Text('Override calculated times manually'),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const CustomPrayerTimesPage(),
+            ),
           ),
         ),
 

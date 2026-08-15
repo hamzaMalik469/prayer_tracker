@@ -3,7 +3,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/helpers/guest_user_helper.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/usecases/create_account.dart';
@@ -33,6 +35,7 @@ final class AuthProvider extends ChangeNotifier {
     required SignOut signOut,
     required SendPasswordReset sendPasswordReset,
     required DeleteAccount deleteAccount,
+    required SharedPreferences prefs,
   })  : _getCurrentUser = getCurrentUser,
         _watchAuthState = watchAuthState,
         _signInWithEmail = signInWithEmail,
@@ -40,7 +43,8 @@ final class AuthProvider extends ChangeNotifier {
         _signInWithGoogle = signInWithGoogle,
         _signOut = signOut,
         _sendPasswordReset = sendPasswordReset,
-        _deleteAccount = deleteAccount;
+        _deleteAccount = deleteAccount,
+        _prefs = prefs;
 
   final GetCurrentUser _getCurrentUser;
   final WatchAuthState _watchAuthState;
@@ -50,21 +54,46 @@ final class AuthProvider extends ChangeNotifier {
   final SignOut _signOut;
   final SendPasswordReset _sendPasswordReset;
   final DeleteAccount _deleteAccount;
+  final SharedPreferences _prefs;
 
   StreamSubscription<UserEntity?>? _authSubscription;
 
   AuthStatus _status = AuthStatus.initial;
   UserEntity? _user;
   String? _errorMessage;
+  String? _guestUserId;
 
   AuthStatus get status => _status;
   UserEntity? get user => _user;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
   bool get isLoading => _status == AuthStatus.loading;
-  String? get userId => _user?.id;
+
+  /// Returns the effective user ID:
+  ///   - Authenticated: real Firebase UID
+  ///   - Guest: stable local guest ID
+  /// This is NEVER null after initialise() completes.
+  String? get userId {
+    if (_user != null) return _user!.id;
+    return _guestUserId;
+  }
+
+  /// True when the user is in guest (local-only) mode.
+  bool get isGuest => _user == null && _guestUserId != null;
+
+  /// True when the effective userId is available.
+  bool get hasUserId => userId != null;
 
   void initialise() {
+    // Load or create guest ID immediately so userId is never null.
+    GuestUserHelper.getOrCreateGuestId(_prefs).then((guestId) {
+      _guestUserId = guestId;
+      if (_status == AuthStatus.unauthenticated ||
+          _status == AuthStatus.initial) {
+        notifyListeners();
+      }
+    });
+
     _authSubscription = _watchAuthState().listen(
       (user) {
         _user = user;
@@ -73,7 +102,7 @@ final class AuthProvider extends ChangeNotifier {
             : AuthStatus.unauthenticated;
         _errorMessage = null;
         AppLogger.info(
-          'Auth state changed: ${user != null ? "authenticated" : "unauthenticated"}',
+          'Auth state: ${user != null ? "authenticated (${user.id})" : "unauthenticated (guest: $_guestUserId)"}',
           tag: 'AuthProvider',
         );
         notifyListeners();
@@ -148,9 +177,8 @@ final class AuthProvider extends ChangeNotifier {
     _setLoading();
     try {
       await _sendPasswordReset(SendPasswordResetParams(email: email));
-      _status = _user != null
-          ? AuthStatus.authenticated
-          : AuthStatus.unauthenticated;
+      _status =
+          _user != null ? AuthStatus.authenticated : AuthStatus.unauthenticated;
       _errorMessage = null;
       notifyListeners();
       return true;

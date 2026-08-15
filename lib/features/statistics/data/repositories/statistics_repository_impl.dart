@@ -1,9 +1,17 @@
-﻿library;
+﻿/// Statistics repository — local-first.
+///
+/// Reads from local SQLite for both guest and authenticated users.
+/// Falls back to Firestore remote data source for authenticated users
+/// when local data is empty (fresh install with existing cloud data).
+library;
 
 import '../../../prayer_times/domain/entities/prayer_time_entity.dart';
+import '../../../prayer_tracking/data/datasources/prayer_tracking_local_datasource.dart';
 import '../../../prayer_tracking/data/datasources/prayer_tracking_remote_datasource.dart';
 import '../../../prayer_tracking/domain/entities/daily_prayer_summary_entity.dart';
 import '../../../prayer_tracking/domain/entities/prayer_record_entity.dart';
+import '../../../../core/helpers/guest_user_helper.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../domain/entities/prayer_statistics_entity.dart';
 import '../../domain/entities/streak_entity.dart';
 import '../../domain/repositories/statistics_repository.dart';
@@ -11,13 +19,65 @@ import '../../domain/usecases/calculate_streak.dart';
 
 final class StatisticsRepositoryImpl implements StatisticsRepository {
   StatisticsRepositoryImpl({
-    required PrayerTrackingRemoteDataSource prayerDataSource,
+    required PrayerTrackingLocalDataSource localDataSource,
+    required PrayerTrackingRemoteDataSource remoteDataSource,
     required CalculateStreak calculateStreak,
-  })  : _prayerDataSource = prayerDataSource,
+  })  : _localDataSource = localDataSource,
+        _remoteDataSource = remoteDataSource,
         _calculateStreak = calculateStreak;
 
-  final PrayerTrackingRemoteDataSource _prayerDataSource;
+  final PrayerTrackingLocalDataSource _localDataSource;
+  final PrayerTrackingRemoteDataSource _remoteDataSource;
   final CalculateStreak _calculateStreak;
+
+  /// Fetches records local-first.
+  /// For guests: always local.
+  /// For authenticated: try local first, fall back to remote if empty.
+  Future<List<PrayerRecordEntity>> _getRecords({
+    required String userId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    // Always try local first.
+    final localRecords = await _localDataSource.getPrayerRecordsForRange(
+      userId: userId,
+      startDate: startDate,
+      endDate: endDate,
+    );
+
+    if (localRecords.isNotEmpty) return localRecords;
+
+    // If guest, local is the only source.
+    if (GuestUserHelper.isGuestId(userId)) return localRecords;
+
+    // For authenticated users with empty local — try remote.
+    try {
+      AppLogger.info(
+        'Local empty for stats — fetching from remote.',
+        tag: 'StatisticsRepo',
+      );
+      final remoteRecords = await _remoteDataSource.getPrayerRecordsForRange(
+        userId: userId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      // Cache remote records locally for next time.
+      for (final record in remoteRecords) {
+        await _localDataSource.upsertPrayerRecord(record);
+        await _localDataSource.markAsSynced(recordId: record.id);
+      }
+
+      return remoteRecords;
+    } catch (e) {
+      AppLogger.warning(
+        'Remote fetch for stats failed — returning empty.',
+        error: e,
+        tag: 'StatisticsRepo',
+      );
+      return [];
+    }
+  }
 
   @override
   Future<PrayerStatisticsEntity> getStatistics({
@@ -25,7 +85,7 @@ final class StatisticsRepositoryImpl implements StatisticsRepository {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    final records = await _prayerDataSource.getPrayerRecordsForRange(
+    final records = await _getRecords(
       userId: userId,
       startDate: startDate,
       endDate: endDate,
@@ -43,7 +103,7 @@ final class StatisticsRepositoryImpl implements StatisticsRepository {
     final today = DateTime.now();
     final yearAgo = today.subtract(const Duration(days: 365));
 
-    final records = await _prayerDataSource.getPrayerRecordsForRange(
+    final records = await _getRecords(
       userId: userId,
       startDate: yearAgo,
       endDate: today,
@@ -62,13 +122,21 @@ final class StatisticsRepositoryImpl implements StatisticsRepository {
 
   @override
   Stream<StreakEntity> watchStreak({required String userId}) {
+    // For guests: watch local via polling.
+    if (GuestUserHelper.isGuestId(userId)) {
+      return _localDataSource
+          .watchPrayerRecordsForDate(userId: userId, date: DateTime.now())
+          .asyncMap((_) => getStreak(userId: userId));
+    }
+
+    // For authenticated: watch Firestore snapshot.
     final today = DateTime.now();
-    return _prayerDataSource
+    return _remoteDataSource
         .watchPrayerRecordsForDate(userId: userId, date: today)
         .asyncMap((_) => getStreak(userId: userId));
   }
 
-  // ── Core computation ──────────────────────────────────────────────────────
+  // ── Your exact computation logic — unchanged ──────────────────────────────
 
   PrayerStatisticsEntity _computeStatistics({
     required List<PrayerRecordEntity> records,
@@ -95,6 +163,7 @@ final class StatisticsRepositoryImpl implements StatisticsRepository {
         case PrayerStatus.prayedLate:
           totalLatePrayed++;
           perPrayerLatePrayed[type] = (perPrayerLatePrayed[type] ?? 0) + 1;
+
         case PrayerStatus.prayed:
           totalPrayed++;
           perPrayerPrayed[type] = (perPrayerPrayed[type] ?? 0) + 1;

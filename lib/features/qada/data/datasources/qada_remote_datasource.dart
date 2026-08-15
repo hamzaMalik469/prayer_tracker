@@ -75,9 +75,12 @@ final class QadaRemoteDataSourceImpl implements QadaRemoteDataSource {
 
   @override
   Stream<QadaSummaryEntity> watchSummary({required String userId}) {
-    return _qadaRef(userId).snapshots().map(
+    return _qadaRef(userId)
+        .snapshots()
+        .map(
           (snap) => _buildSummary(snap.docs),
-        ).handleError((Object e) {
+        )
+        .handleError((Object e) {
       AppLogger.error('watchQadaSummary error', error: e, tag: 'QadaDS');
     });
   }
@@ -90,39 +93,39 @@ final class QadaRemoteDataSourceImpl implements QadaRemoteDataSource {
     String? notes,
   }) async {
     try {
-      final now        = DateTime.now();
-      final qadaId     = QadaRecordEntity.buildId(
-        userId:     userId,
+      final now = DateTime.now();
+      final qadaId = QadaRecordEntity.buildId(
+        userId: userId,
         missedDate: missedDate,
         prayerType: prayerType,
       );
 
       final qadaRecord = QadaRecordEntity(
-        id:         qadaId,
-        userId:     userId,
+        id: qadaId,
+        userId: userId,
         missedDate: missedDate,
         prayerType: prayerType,
         qadaStatus: QadaStatus.pending,
-        createdAt:  now,
-        updatedAt:  now,
-        notes:      notes,
+        createdAt: now,
+        updatedAt: now,
+        notes: notes,
       );
 
       // Also ensure the prayer record for that date is marked as missed.
       final prayerRecordId = PrayerRecordEntity.buildId(
-        userId:     userId,
-        date:       missedDate,
+        userId: userId,
+        date: missedDate,
         prayerType: prayerType,
       );
 
       final prayerRecord = PrayerRecordEntity(
-        id:         prayerRecordId,
-        userId:     userId,
-        date:       missedDate,
+        id: prayerRecordId,
+        userId: userId,
+        date: missedDate,
         prayerType: prayerType,
-        status:     PrayerStatus.missed,
-        createdAt:  now,
-        updatedAt:  now,
+        status: PrayerStatus.missed,
+        createdAt: now,
+        updatedAt: now,
       );
 
       final batch = _firestore.batch();
@@ -175,7 +178,7 @@ final class QadaRemoteDataSourceImpl implements QadaRemoteDataSource {
       final now = DateTime.now();
 
       // Build updated Qada record.
-      final qadaDocRef  = _qadaRef(userId).doc(qadaRecordId);
+      final qadaDocRef = _qadaRef(userId).doc(qadaRecordId);
       final existingDoc = await qadaDocRef.get();
 
       if (!existingDoc.exists) {
@@ -188,26 +191,26 @@ final class QadaRemoteDataSourceImpl implements QadaRemoteDataSource {
       );
 
       final updated = existing.copyWith(
-        qadaStatus:  QadaStatus.completed,
-        updatedAt:   now,
+        qadaStatus: QadaStatus.completed,
+        updatedAt: now,
         completedAt: now,
       );
 
       // Also update the original prayer record to qadaCompleted.
       final prayerRecordId = PrayerRecordEntity.buildId(
-        userId:     userId,
-        date:       missedDate,
+        userId: userId,
+        date: missedDate,
         prayerType: prayerType,
       );
 
       final prayerRecord = PrayerRecordEntity(
-        id:         prayerRecordId,
-        userId:     userId,
-        date:       missedDate,
+        id: prayerRecordId,
+        userId: userId,
+        date: missedDate,
         prayerType: prayerType,
-        status:     PrayerStatus.qadaCompleted,
-        createdAt:  now,
-        updatedAt:  now,
+        status: PrayerStatus.qadaCompleted,
+        createdAt: now,
+        updatedAt: now,
       );
 
       final batch = _firestore.batch();
@@ -244,9 +247,8 @@ final class QadaRemoteDataSourceImpl implements QadaRemoteDataSource {
   }) async {
     try {
       final dateStr = date.toLocalDateString();
-      final snap    = await _qadaRef(userId)
-          .where('missedDate', isEqualTo: dateStr)
-          .get();
+      final snap =
+          await _qadaRef(userId).where('missedDate', isEqualTo: dateStr).get();
       return snap.docs
           .map((d) => QadaRecordModel.fromFirestore(d.id, d.data()))
           .toList();
@@ -271,15 +273,15 @@ final class QadaRemoteDataSourceImpl implements QadaRemoteDataSource {
 
       // Revert prayer record to missed (if it was qadaCompleted).
       final prayerRecordId = PrayerRecordEntity.buildId(
-        userId:     userId,
-        date:       missedDate,
+        userId: userId,
+        date: missedDate,
         prayerType: prayerType,
       );
 
       batch.update(
         _prayerRef(userId).doc(prayerRecordId),
         {
-          'status':    PrayerStatus.missed.name,
+          'status': PrayerStatus.missed.name,
           'updatedAt': Timestamp.fromDate(DateTime.now()),
         },
       );
@@ -294,7 +296,7 @@ final class QadaRemoteDataSourceImpl implements QadaRemoteDataSource {
   QadaSummaryEntity _buildSummary(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
   ) {
-    final pending   = <QadaRecordEntity>[];
+    final pending = <QadaRecordEntity>[];
     final completed = <QadaRecordEntity>[];
 
     for (final doc in docs) {
@@ -307,7 +309,7 @@ final class QadaRemoteDataSourceImpl implements QadaRemoteDataSource {
     }
 
     return QadaSummaryEntity(
-      pendingRecords:   pending,
+      pendingRecords: pending,
       completedRecords: completed,
     );
   }

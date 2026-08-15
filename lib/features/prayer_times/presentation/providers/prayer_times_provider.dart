@@ -39,26 +39,37 @@ final class PrayerTimesProvider extends ChangeNotifier {
 
       final results = await Future.wait([
         _getPrayerTimes(
-          GetPrayerTimesParams(date: now, location: location, settings: settings),
+          GetPrayerTimesParams(
+              date: now, location: location, settings: settings),
         ),
         _getPrayerTimes(
-          GetPrayerTimesParams(date: tomorrow, location: location, settings: settings),
+          GetPrayerTimesParams(
+              date: tomorrow, location: location, settings: settings),
         ),
       ]);
 
-      _todayTimes = results[0];
-      _tomorrowTimes = results[1];
+      // Compute end times using the next day's Fajr for Isha end.
+      _todayTimes = results[0].withEndTimes(
+        nextDayFajr: results[1].fajr.time,
+      );
+      _tomorrowTimes = results[1].withEndTimes();
+
       _isLoading = false;
       notifyListeners();
 
       AppLogger.info(
-        'Prayer times calculated for ${now.year}-${now.month}-${now.day}',
+        'Prayer times calculated with end times for '
+        '${now.year}-${now.month}-${now.day}',
         tag: 'PrayerTimesProvider',
       );
     } catch (e) {
-      AppLogger.error('Failed to calculate prayer times', error: e, tag: 'PrayerTimesProvider');
+      AppLogger.error(
+        'Failed to calculate prayer times',
+        error: e,
+        tag: 'PrayerTimesProvider',
+      );
       _isLoading = false;
-      _errorMessage = 'Could not calculate prayer times. Please check your location.';
+      _errorMessage = 'Could not calculate prayer times. Check your location.';
       notifyListeners();
     }
   }

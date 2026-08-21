@@ -54,19 +54,19 @@ class PrayerCard extends StatelessWidget {
       };
 
   IconData _statusIcon(PrayerStatus status) => switch (status) {
-        PrayerStatus.prayed => Icons.check_circle_rounded,
-        PrayerStatus.prayedLate => Icons.check_circle_outline_rounded,
+        PrayerStatus.prayed => Icons.people_alt_rounded,
+        PrayerStatus.prayedLate => Icons.person,
         PrayerStatus.missed => Icons.cancel_rounded,
         PrayerStatus.qadaCompleted => Icons.replay_circle_filled_rounded,
         PrayerStatus.notRecorded => Icons.radio_button_unchecked_rounded,
       };
 
   String _statusLabel(PrayerStatus status) => switch (status) {
-        PrayerStatus.prayed => 'Prayed',
-        PrayerStatus.prayedLate => 'Prayed Late',
+        PrayerStatus.notRecorded => 'Not Recorded',
+        PrayerStatus.prayed => 'With Jammah',
         PrayerStatus.missed => 'Missed',
-        PrayerStatus.qadaCompleted => 'Qada Completed',
-        PrayerStatus.notRecorded => 'Not recorded',
+        PrayerStatus.prayedLate => 'On Time',
+        PrayerStatus.qadaCompleted => 'Qada Prayed'
       };
 
   @override
@@ -82,37 +82,34 @@ class PrayerCard extends StatelessWidget {
     final now = DateTime.now();
     final isUpcoming = prayerTime.isUpcoming(now);
     final isActive = prayerTime.isActive(now);
-    final hasPassed = prayerTime.hasPassed(now);
 
-    // Disable tracking for prayers that have not arrived yet.
-    // Allow tracking for active and passed prayers.
     final canTrack = !isUpcoming && auth.hasUserId && !isRecording;
 
-    // Visual emphasis for the currently active prayer.
     final cardColor =
-        isActive ? colorScheme.primaryContainer.withOpacity(0.3) : null;
+        isActive ? colorScheme.primaryContainer.withOpacity(0.2) : null;
 
     return Semantics(
       label: '${prayerTime.prayerType.displayName} prayer. '
           '${_statusLabel(status)}. '
-          'Time: ${_formatTime(prayerTime.time)}.'
-          '${isUpcoming ? ' Not yet arrived.' : ''}',
+          'Adhan start: ${_formatTime(prayerTime.time)}.'
+          '${prayerTime.hasJamaah ? " Jamaah Jama\'ah time: ${_formatTime(prayerTime.jamaahTime!)}" : ""}',
       button: canTrack,
       child: Opacity(
-        opacity: isUpcoming ? 0.5 : 1.0,
+        opacity: isUpcoming ? 0.55 : 1.0,
         child: Card(
           color: cardColor,
+          elevation: isActive ? AppElevation.medium : AppElevation.low,
           child: InkWell(
+            // onTap: canTrack
+            //     ? () async {
+            //         HapticFeedback.lightImpact();
+            //         await tracking.togglePrayer(
+            //           userId: auth.userId!,
+            //           prayerType: prayerTime.prayerType,
+            //         );
+            //       }
+            //     : null,
             onTap: canTrack
-                ? () async {
-                    HapticFeedback.lightImpact();
-                    await tracking.togglePrayer(
-                      userId: auth.userId!,
-                      prayerType: prayerTime.prayerType,
-                    );
-                  }
-                : null,
-            onLongPress: canTrack
                 ? () => _showStatusSheet(context, auth.userId!, tracking)
                 : null,
             borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -123,7 +120,7 @@ class PrayerCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  // ── Status icon / active indicator ─────────────────────
+                  // ── Tracker status indicator icon ─────────────────────
                   AnimatedSwitcher(
                     duration: AppDurations.fast,
                     child: isRecording
@@ -143,10 +140,10 @@ class PrayerCard extends StatelessWidget {
                                 key: ValueKey(status),
                                 color: isUpcoming
                                     ? colorScheme.onSurfaceVariant
+                                        .withOpacity(0.5)
                                     : statusColor,
                                 size: 28,
                               ),
-                              // Active prayer pulse ring
                               if (isActive &&
                                   status == PrayerStatus.notRecorded)
                                 Container(
@@ -166,7 +163,7 @@ class PrayerCard extends StatelessWidget {
                   ),
                   const SizedBox(width: AppSpacing.md),
 
-                  // ── Prayer name + Arabic + time window ────────────────
+                  // ── Prayer Identifier Details ─────────────────────────
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,7 +175,7 @@ class PrayerCard extends StatelessWidget {
                               style: Theme.of(context)
                                   .textTheme
                                   .titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w600),
+                                  ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                             if (isActive) ...[
                               const SizedBox(width: AppSpacing.xs),
@@ -199,26 +196,10 @@ class PrayerCard extends StatelessWidget {
                                       .labelSmall
                                       ?.copyWith(
                                         color: colorScheme.onPrimary,
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight: FontWeight.w800,
                                         fontSize: 9,
                                       ),
                                 ),
-                              ),
-                            ],
-                            if (isUpcoming) ...[
-                              const SizedBox(width: AppSpacing.xs),
-                              Icon(
-                                Icons.schedule_rounded,
-                                size: 14,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ],
-                            if (prayerTime.isCustom) ...[
-                              const SizedBox(width: AppSpacing.xs),
-                              Icon(
-                                Icons.edit_rounded,
-                                size: 12,
-                                color: colorScheme.primary.withOpacity(0.6),
                               ),
                             ],
                           ],
@@ -230,33 +211,69 @@ class PrayerCard extends StatelessWidget {
                                     color: colorScheme.onSurfaceVariant,
                                   ),
                         ),
+                        const SizedBox(height: AppSpacing.xs),
+
+                        // 👥 JAMA'AH PILL INDICATOR
+                        if (prayerTime.hasJamaah)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isActive
+                                  ? colorScheme.primary.withOpacity(0.15)
+                                  : colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.people_alt_rounded,
+                                  size: 11,
+                                  color: isActive
+                                      ? colorScheme.primary
+                                      : colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Jama\'ah: ${_formatTime(prayerTime.jamaahTime!)}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                        color: isActive
+                                            ? colorScheme.primary
+                                            : colorScheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 10,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                   ),
 
-                  // ── Time + end time + status ──────────────────────────
+                  // ── Astronomical Timings and Closing Boundary ─────────
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Start time
-                      Row(
-                        children: [
-                          Text(
-                            _formatTime(prayerTime.time),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w500),
-                          ),
-
-                          // End time
-                          if (prayerTime.endTime != null)
-                            Text(
-                              '  ---> ${_formatTime(prayerTime.endTime!)}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
+                      Text(
+                        _formatTime(prayerTime.time),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (prayerTime.endTime != null)
+                        Text(
+                          'ends ${_formatTime(prayerTime.endTime!)}',
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
                                     color: isActive
                                         ? colorScheme.primary
                                         : colorScheme.onSurfaceVariant,
@@ -264,18 +281,15 @@ class PrayerCard extends StatelessWidget {
                                         ? FontWeight.w600
                                         : FontWeight.w400,
                                   ),
-                            ),
-                        ],
-                      ),
-
-                      // Status label
+                        ),
+                      const SizedBox(height: 2),
                       if (!isUpcoming)
                         Text(
                           _statusLabel(status),
                           style:
                               Theme.of(context).textTheme.labelSmall?.copyWith(
                                     color: statusColor,
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.w700,
                                   ),
                         ),
                       if (isUpcoming)
@@ -283,7 +297,8 @@ class PrayerCard extends StatelessWidget {
                           'Upcoming',
                           style:
                               Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
+                                    color: colorScheme.onSurfaceVariant
+                                        .withOpacity(0.6),
                                     fontWeight: FontWeight.w400,
                                   ),
                         ),
@@ -297,8 +312,6 @@ class PrayerCard extends StatelessWidget {
       ),
     );
   }
-
-  // ── Status bottom sheet ───────────────────────────────────────────────────
 
   void _showStatusSheet(
     BuildContext context,
@@ -341,8 +354,8 @@ class PrayerCard extends StatelessWidget {
             const Divider(height: 1),
             _StatusOption(
               icon: Icons.check_circle_rounded,
-              label: 'Prayed',
-              subtitle: 'Completed on time',
+              label: 'With Jammah',
+              subtitle: 'Completed on time with Jammah in Masjid',
               color: AppColors.prayedColor,
               onTap: () {
                 Navigator.pop(ctx);
@@ -354,8 +367,8 @@ class PrayerCard extends StatelessWidget {
             ),
             _StatusOption(
               icon: Icons.check_circle_outline_rounded,
-              label: 'Prayed Late',
-              subtitle: 'Completed after the window',
+              label: 'On time',
+              subtitle: 'Completed in allowed time of the prayer',
               color: AppColors.prayedLateColor,
               onTap: () {
                 Navigator.pop(ctx);
@@ -367,7 +380,7 @@ class PrayerCard extends StatelessWidget {
             ),
             _StatusOption(
               icon: Icons.cancel_rounded,
-              label: 'Missed',
+              label: 'Missed/Qada',
               subtitle: 'Mark as missed — optionally add to Qada',
               color: AppColors.missedColor,
               onTap: () {
@@ -423,6 +436,9 @@ class PrayerCard extends StatelessWidget {
           OutlinedButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('No thanks')),
+          SizedBox(
+            height: 10,
+          ),
           FilledButton.icon(
               onPressed: () => Navigator.pop(ctx, true),
               icon: const Icon(Icons.add_rounded),

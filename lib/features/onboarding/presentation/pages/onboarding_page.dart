@@ -51,7 +51,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
     final onboarding = context.read<OnboardingProvider>();
     await onboarding.completeOnboarding();
     if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+    // Go directly to home — works for both guest and authenticated.
+    // Guest ID is already created by AuthProvider.initialise().
+    Navigator.of(context).pushReplacementNamed(AppRoutes.home);
   }
 
   @override

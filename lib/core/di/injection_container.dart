@@ -210,13 +210,13 @@ Future<void> initializeDependencies() async {
     QadaRepositoryImpl(
       localDataSource: sl<QadaLocalDataSource>(),
       remoteDataSource: sl<QadaRemoteDataSource>(),
+      prayerLocalDataSource: sl<PrayerTrackingLocalDataSource>(),
     ),
   );
   sl.registerFactory(() => GetQadaSummary(sl<QadaRepository>()));
   sl.registerFactory(() => WatchQadaSummary(sl<QadaRepository>()));
   sl.registerFactory(() => AddQadaRecord(sl<QadaRepository>()));
   sl.registerFactory(() => CompleteQadaRecord(sl<QadaRepository>()));
-
   // ════════════════════════════════════════════════════════════════════════
   // STATISTICS — reads from PrayerTrackingRepository (local-first)
   // ════════════════════════════════════════════════════════════════════════

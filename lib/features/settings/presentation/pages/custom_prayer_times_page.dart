@@ -8,8 +8,8 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/widgets/app_snackbar.dart';
 import '../../../prayer_times/data/datasources/prayer_times_custom_datasource.dart';
 import '../../../prayer_times/domain/entities/prayer_time_entity.dart';
-import '../../../prayer_times/presentation/providers/prayer_times_provider.dart';
 import '../../../prayer_times/presentation/providers/next_prayer_provider.dart';
+import '../../../prayer_times/presentation/providers/prayer_times_provider.dart';
 import '../../presentation/providers/settings_provider.dart';
 
 class CustomPrayerTimesPage extends StatefulWidget {
@@ -27,7 +27,7 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
   @override
   void initState() {
     super.initState();
-    for (final id in ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha']) {
+    for (final id in ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']) {
       _controllers[id] = TextEditingController();
     }
     _loadExisting();
@@ -43,11 +43,11 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
         _controllers[entry.key]?.text = entry.value;
       }
     } else {
-      // Pre-fill with current calculated times.
+      // Pre-fill with calculated start times as a helpful starting point
       final timesProvider = context.read<PrayerTimesProvider>();
       final today = timesProvider.todayTimes;
       if (today != null) {
-        for (final prayer in today.all) {
+        for (final prayer in today.obligatory) {
           _controllers[prayer.prayerType.identifier]?.text =
               _formatHHMM(prayer.time);
         }
@@ -66,26 +66,20 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
       final value = entry.value.text.trim();
       if (value.isEmpty) continue;
 
-      // Validate HH:MM format.
       final parts = value.split(':');
       if (parts.length != 2) {
         AppSnackbar.showError(context,
-            'Invalid time format for ${entry.key}. Use HH:MM (e.g. 05:30).');
+            'Use HH:MM 24-hr format for ${entry.key.toUpperCase()} (e.g. 13:45).');
         return;
       }
       final h = int.tryParse(parts[0]);
       final m = int.tryParse(parts[1]);
       if (h == null || m == null || h < 0 || h > 23 || m < 0 || m > 59) {
-        AppSnackbar.showError(context,
-            'Invalid time for ${entry.key}. Hours: 0-23, Minutes: 0-59.');
+        AppSnackbar.showError(
+            context, 'Invalid time bounds for ${entry.key.toUpperCase()}.');
         return;
       }
       times[entry.key] = value;
-    }
-
-    if (times.length < 6) {
-      AppSnackbar.showError(context, 'Please enter all 6 prayer times.');
-      return;
     }
 
     final ds = sl<PrayerTimesCustomDataSource>();
@@ -93,7 +87,7 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
 
     if (!mounted) return;
 
-    // Recalculate prayer times.
+    // Recalculate
     final settings = context.read<SettingsProvider>();
     await context.read<PrayerTimesProvider>().calculatePrayerTimes(
           location: settings.locationSettings,
@@ -106,7 +100,7 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
         );
 
     if (!mounted) return;
-    AppSnackbar.showSuccess(context, 'Custom prayer times saved.');
+    AppSnackbar.showSuccess(context, 'Mosque Jama\'ah timings saved.');
     Navigator.pop(context);
   }
 
@@ -123,7 +117,7 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
         );
 
     if (!mounted) return;
-    AppSnackbar.showSuccess(context, 'Using calculated prayer times.');
+    AppSnackbar.showSuccess(context, 'Reset to calculated timings.');
     Navigator.pop(context);
   }
 
@@ -141,12 +135,13 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Custom Prayer Times'),
+        title: const Text('Mosque Jama\'ah Times'),
         actions: [
           if (_hasCustom)
             TextButton(
               onPressed: _clearCustom,
-              child: Text('Reset', style: TextStyle(color: colorScheme.error)),
+              child:
+                  Text('Reset All', style: TextStyle(color: colorScheme.error)),
             ),
         ],
       ),
@@ -155,7 +150,7 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
           : ListView(
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
-                // Info
+                // Info Banner
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
@@ -164,14 +159,14 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline_rounded,
+                      Icon(Icons.people_alt_rounded,
                           color: colorScheme.onPrimaryContainer, size: 20),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Text(
-                          'Enter times in 24-hour format (HH:MM).\n'
-                          'Leave empty to use calculated times.\n'
-                          'Tap Reset to go back to automatic calculation.',
+                          'Configure the congregational (Iqamah) times '
+                          'set by your local mosque. '
+                          'These timings will display beautifully on the Home Screen card list.',
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: colorScheme.onPrimaryContainer,
@@ -184,7 +179,7 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // Prayer time fields
+                // Manual timings inputs
                 ..._buildFields(),
 
                 const SizedBox(height: AppSpacing.xl),
@@ -193,8 +188,8 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
                   width: double.infinity,
                   child: FilledButton.icon(
                     onPressed: _save,
-                    icon: const Icon(Icons.save_rounded),
-                    label: const Text('Save Custom Times'),
+                    icon: const Icon(Icons.check_circle_outline_rounded),
+                    label: const Text('Save Jama\'ah Times'),
                   ),
                 ),
               ],
@@ -204,12 +199,11 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
 
   List<Widget> _buildFields() {
     final labels = {
-      'fajr': 'Fajr',
-      'sunrise': 'Sunrise',
-      'dhuhr': 'Dhuhr',
-      'asr': 'Asr',
-      'maghrib': 'Maghrib',
-      'isha': 'Isha',
+      'fajr': 'Fajr Jama\'ah',
+      'dhuhr': 'Dhuhr Jama\'ah',
+      'asr': 'Asr Jama\'ah',
+      'maghrib': 'Maghrib Jama\'ah',
+      'isha': 'Isha Jama\'ah',
     };
 
     return labels.entries.map((entry) {
@@ -220,7 +214,7 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
           keyboardType: TextInputType.datetime,
           decoration: InputDecoration(
             labelText: entry.value,
-            hintText: 'HH:MM (e.g. 05:30)',
+            hintText: 'HH:MM (24-hr format)',
             prefixIcon: Icon(_iconFor(entry.key)),
           ),
         ),
@@ -230,7 +224,6 @@ class _CustomPrayerTimesPageState extends State<CustomPrayerTimesPage> {
 
   IconData _iconFor(String prayer) => switch (prayer) {
         'fajr' => Icons.dark_mode_outlined,
-        'sunrise' => Icons.wb_sunny_outlined,
         'dhuhr' => Icons.light_mode_outlined,
         'asr' => Icons.wb_cloudy_outlined,
         'maghrib' => Icons.nights_stay_outlined,

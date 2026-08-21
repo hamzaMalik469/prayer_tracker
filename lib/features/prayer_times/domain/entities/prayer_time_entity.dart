@@ -52,42 +52,39 @@ extension PrayerTypeExtension on PrayerType {
       ];
 }
 
-/// A single prayer time for a given day.
-/// Now includes [endTime] — the time this prayer window closes.
+/// A single prayer time window with optional Jama'ah (Jama\'ah) time.
 final class PrayerTimeEntity extends Equatable {
   const PrayerTimeEntity({
     required this.prayerType,
     required this.time,
     required this.date,
     this.endTime,
-    this.isCustom = false,
+    this.jamaahTime,
   });
 
   final PrayerType prayerType;
 
-  /// The start time of this prayer window (local time).
+  /// Start of the prayer window (astronomical local time).
   final DateTime time;
 
-  /// The end time of this prayer window (local time).
-  /// Null only for sunrise (not a prayer window).
+  /// End of the prayer window (astronomical local time).
   final DateTime? endTime;
 
-  /// The calendar date this prayer belongs to.
+  /// Calendar date this prayer belongs to.
   final DateTime date;
 
-  /// True when the user has overridden this prayer time.
-  final bool isCustom;
+  /// Optional mosque congregational prayer time (local time).
+  final DateTime? jamaahTime;
 
-  /// Returns true when [now] falls within this prayer's window.
+  bool get hasJamaah => jamaahTime != null;
+
   bool isActive(DateTime now) {
     if (endTime == null) return false;
     return now.isAfter(time) && now.isBefore(endTime!);
   }
 
-  /// Returns true when this prayer time has not arrived yet.
   bool isUpcoming(DateTime now) => now.isBefore(time);
 
-  /// Returns true when this prayer window has already passed.
   bool hasPassed(DateTime now) {
     if (endTime == null) return now.isAfter(time);
     return now.isAfter(endTime!);
@@ -96,17 +93,17 @@ final class PrayerTimeEntity extends Equatable {
   PrayerTimeEntity copyWith({
     DateTime? time,
     DateTime? endTime,
-    bool? isCustom,
+    DateTime? jamaahTime,
   }) {
     return PrayerTimeEntity(
       prayerType: prayerType,
       time: time ?? this.time,
       endTime: endTime ?? this.endTime,
       date: date,
-      isCustom: isCustom ?? this.isCustom,
+      jamaahTime: jamaahTime ?? this.jamaahTime,
     );
   }
 
   @override
-  List<Object?> get props => [prayerType, time, endTime, date, isCustom];
+  List<Object?> get props => [prayerType, time, endTime, date, jamaahTime];
 }

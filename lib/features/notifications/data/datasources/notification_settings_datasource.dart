@@ -1,4 +1,3 @@
-/// Local persistence for notification settings.
 library;
 
 import 'dart:convert';
@@ -66,6 +65,8 @@ final class NotificationSettingsDataSourceImpl
               'minutesAfter': entry.value.minutesAfter,
               'soundEnabled': entry.value.soundEnabled,
               'vibrationEnabled': entry.value.vibrationEnabled,
+              'jamaahEnabled': entry.value.jamaahEnabled,
+              'minutesBeforeJamaah': entry.value.minutesBeforeJamaah,
             },
         },
       };
@@ -91,6 +92,8 @@ final class NotificationSettingsDataSourceImpl
         minutesAfter: configData['minutesAfter'] as int?,
         soundEnabled: configData['soundEnabled'] as bool? ?? true,
         vibrationEnabled: configData['vibrationEnabled'] as bool? ?? true,
+        jamaahEnabled: configData['jamaahEnabled'] as bool? ?? true,
+        minutesBeforeJamaah: configData['minutesBeforeJamaah'] as int? ?? 5,
       );
     }
 

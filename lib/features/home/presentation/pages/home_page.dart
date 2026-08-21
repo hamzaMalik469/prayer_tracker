@@ -21,7 +21,6 @@ import '../widgets/next_prayer_card.dart';
 import '../widgets/prayer_card_list.dart';
 import '../widgets/streak_card.dart';
 import '../widgets/today_progress_card.dart';
-import '../../../notifications/presentation/pages/notification_settings_page.dart';
 import '../../../qada/presentation/pages/qada_page.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../statistics/presentation/pages/statistics_page.dart';
@@ -36,14 +35,13 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _initialised = false;
+  // Key incremented to force calendar rebuild when switching to it.
+  int _calendarVersion = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
-    // Defer initialisation until AFTER the first frame is built.
-    // This prevents setState() called during build errors.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _initialiseProviders();
     });
@@ -62,21 +60,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final prayerSettings = settings.prayerSettings;
     final notifications = context.read<NotificationProvider>();
 
-    // Step 1 — Calculate prayer times.
+    // Step 1 — Prayer times.
     if (!mounted) return;
     await context.read<PrayerTimesProvider>().calculatePrayerTimes(
           location: location,
           settings: prayerSettings,
         );
 
-    // Step 2 — Start next prayer countdown.
+    // Step 2 — Countdown.
     if (!mounted) return;
     await context.read<NextPrayerProvider>().start(
           location: location,
           settings: prayerSettings,
         );
 
-    // Step 3 — Schedule notifications.
+    // Step 3 — Notifications.
     if (!mounted) return;
     final timesProvider = context.read<PrayerTimesProvider>();
     if (timesProvider.todayTimes != null &&
@@ -87,7 +85,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
     }
 
-    // Step 4 — Initialise tracking providers.
+    // Step 4 — All tracking providers.
     if (!mounted) return;
     await Future.wait([
       context
@@ -97,7 +95,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       context.read<QadaProvider>().initialise(userId: effectiveUserId),
     ]);
 
-    // Step 5 — Trigger background sync for authenticated users.
+    // Step 5 — Background sync.
     if (auth.isAuthenticated && mounted) {
       sl<SyncService>().syncAll(userId: effectiveUserId).ignore();
     }
@@ -116,9 +114,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (mounted) _onResumed();
         });
       case AppLifecycleState.paused:
-        if (mounted) {
-          context.read<NextPrayerProvider>().pause();
-        }
+        if (mounted) context.read<NextPrayerProvider>().pause();
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
@@ -134,21 +130,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final notifications = context.read<NotificationProvider>();
     final effectiveUserId = auth.userId;
 
-    // Refresh prayer times (handles date change + timezone change).
     if (!mounted) return;
     await context.read<PrayerTimesProvider>().refresh(
           location: settings.locationSettings,
           settings: settings.prayerSettings,
         );
 
-    // Resume countdown.
     if (!mounted) return;
     await context.read<NextPrayerProvider>().resume(
           location: settings.locationSettings,
           settings: settings.prayerSettings,
         );
 
-    // Reschedule notifications with fresh times.
     if (!mounted) return;
     final timesProvider = context.read<PrayerTimesProvider>();
     if (timesProvider.todayTimes != null &&
@@ -159,17 +152,55 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
     }
 
-    // Refresh tracking on date change.
     if (!mounted) return;
     if (effectiveUserId != null) {
       await context
           .read<PrayerTrackingProvider>()
           .onDateChanged(userId: effectiveUserId);
 
-      // Background sync on resume.
+      context.read<StatisticsProvider>().refresh();
+
       if (auth.isAuthenticated) {
         sl<SyncService>().syncAll(userId: effectiveUserId).ignore();
       }
+    }
+  }
+
+  /// Called every time a tab is tapped.
+  /// Refreshes the target tab's data from local SQLite.
+  void _onTabChanged(int index) {
+    final previousIndex = _currentIndex;
+    final auth = context.read<AuthProvider>();
+    final effectiveUserId = auth.userId;
+
+    setState(() => _currentIndex = index);
+
+    // Coming FROM Home tab → something might have changed.
+    // Refresh whichever tab we are going TO.
+    if (effectiveUserId == null) return;
+
+    switch (index) {
+      case 0:
+        // Home — refresh tracking summary.
+        context
+            .read<PrayerTrackingProvider>()
+            .onDateChanged(userId: effectiveUserId);
+
+      case 1:
+        // Calendar — force rebuild to pick up new prayer records.
+        setState(() => _calendarVersion++);
+
+      case 2:
+        // Statistics — refresh streak + stats.
+        context.read<StatisticsProvider>().refresh();
+
+      case 3:
+        // Qada — refresh balance.
+        context.read<QadaProvider>().initialise(userId: effectiveUserId);
+
+      case 4:
+        // Settings — nothing to refresh.
+        break;
     }
   }
 
@@ -184,24 +215,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return Scaffold(
       body: Column(
         children: [
-          const OfflineBanner(),
           Expanded(
             child: IndexedStack(
               index: _currentIndex,
-              children: const [
-                _DashboardTab(),
-                CalendarPage(),
-                StatisticsPage(),
-                QadaPage(),
-                SettingsPage(),
+              children: [
+                const _DashboardTab(),
+                // Key changes force CalendarPage to rebuild with fresh data.
+                CalendarPage(key: ValueKey('calendar_$_calendarVersion')),
+                const StatisticsPage(),
+                const QadaPage(),
+                const SettingsPage(),
               ],
             ),
           ),
+          const OfflineBanner(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        onDestinationSelected: _onTabChanged,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -246,8 +278,8 @@ class _DashboardTab extends StatelessWidget {
         SliverToBoxAdapter(child: NextPrayerCard()),
         SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
         SliverToBoxAdapter(child: TodayProgressCard()),
-        SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
-        SliverToBoxAdapter(child: StreakCard()),
+        // SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
+        // SliverToBoxAdapter(child: StreakCard()),
         SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),

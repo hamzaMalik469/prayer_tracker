@@ -1,6 +1,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:prayers_tracker_plus/features/auth/presentation/pages/email_verification_page.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -35,23 +36,27 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final auth = context.read<AuthProvider>();
+    final auth    = context.read<AuthProvider>();
     final success = await auth.createAccount(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
+      email:       _emailController.text.trim(),
+      password:    _passwordController.text,
       displayName: _nameController.text.trim(),
     );
 
     if (!mounted) return;
 
     if (success) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      // Navigate to email verification page.
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => const EmailVerificationPage(),
+        ),
+      );
     } else if (auth.errorMessage != null) {
       AppSnackbar.showError(context, auth.errorMessage!);
       auth.clearError();
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;

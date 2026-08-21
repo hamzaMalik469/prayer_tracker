@@ -1,4 +1,4 @@
-/// Local storage for user-defined custom prayer times.
+/// Local storage for mosque Jama'ah (Jama\'ah) times.
 library;
 
 import 'dart:convert';
@@ -14,17 +14,13 @@ abstract interface class PrayerTimesCustomDataSource {
   Future<bool> hasCustomTimes();
 }
 
-/// Stores custom prayer times as JSON in SharedPreferences.
-///
-/// Format: { "fajr": "05:30", "dhuhr": "12:15", ... }
-/// Only stores overridden times — null means use calculated.
 final class PrayerTimesCustomDataSourceImpl
     implements PrayerTimesCustomDataSource {
   const PrayerTimesCustomDataSourceImpl({required SharedPreferences prefs})
       : _prefs = prefs;
 
   final SharedPreferences _prefs;
-  static const _key = 'custom_prayer_times';
+  static const _key = 'mosque_jamaah_times';
 
   @override
   Future<Map<String, String>?> getCustomTimes() async {
@@ -35,9 +31,9 @@ final class PrayerTimesCustomDataSourceImpl
       return map.map((k, v) => MapEntry(k, v as String));
     } catch (e) {
       AppLogger.warning(
-        'Failed to load custom prayer times',
+        'Failed to load custom Jamaah times',
         error: e,
-        tag: 'CustomTimesDS',
+        tag: 'JamaahTimesDS',
       );
       return null;
     }
@@ -47,12 +43,12 @@ final class PrayerTimesCustomDataSourceImpl
   Future<void> saveCustomTimes(Map<String, String> times) async {
     try {
       await _prefs.setString(_key, jsonEncode(times));
-      AppLogger.info('Custom prayer times saved.', tag: 'CustomTimesDS');
+      AppLogger.info('Mosque Jamaah times saved.', tag: 'JamaahTimesDS');
     } catch (e) {
       AppLogger.error(
-        'Failed to save custom prayer times',
+        'Failed to save mosque Jamaah times',
         error: e,
-        tag: 'CustomTimesDS',
+        tag: 'JamaahTimesDS',
       );
     }
   }
@@ -60,7 +56,7 @@ final class PrayerTimesCustomDataSourceImpl
   @override
   Future<void> clearCustomTimes() async {
     await _prefs.remove(_key);
-    AppLogger.info('Custom prayer times cleared.', tag: 'CustomTimesDS');
+    AppLogger.info('Mosque Jamaah times cleared.', tag: 'JamaahTimesDS');
   }
 
   @override

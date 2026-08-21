@@ -587,7 +587,11 @@ class _AddQadaSheetState extends State<_AddQadaSheet> {
               children: PrayerTypeExtension.obligatory.map((type) {
                 final isSelected = type == _selectedType;
                 return ChoiceChip(
-                  label: Text(type.displayName),
+                  label: Text(type.displayName, style: TextStyle(
+                    color: isSelected
+                        ? colorScheme.onPrimaryContainer
+                        : colorScheme.onSurfaceVariant,
+                  )),
                   selected: isSelected,
                   onSelected: (_) => setState(() => _selectedType = type),
                   selectedColor: colorScheme.primaryContainer,

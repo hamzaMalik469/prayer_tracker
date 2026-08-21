@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:prayers_tracker_plus/core/errors/failures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/helpers/guest_user_helper.dart';
@@ -130,7 +131,7 @@ final class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _setError(_extractMessage(e));
+      _setError(_getErrorMessage(e));
       return false;
     }
   }
@@ -154,7 +155,7 @@ final class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _setError(_extractMessage(e));
+      _setError(_getErrorMessage(e));
       return false;
     }
   }
@@ -168,7 +169,7 @@ final class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _setError(_extractMessage(e));
+      _setError(_getErrorMessage(e));
       return false;
     }
   }
@@ -183,7 +184,7 @@ final class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _setError(_extractMessage(e));
+      _setError(_getErrorMessage(e));
       return false;
     }
   }
@@ -198,7 +199,7 @@ final class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _setError(_extractMessage(e));
+      _setError(_getErrorMessage(e));
       return false;
     }
   }
@@ -213,7 +214,7 @@ final class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _setError(_extractMessage(e));
+      _setError(_getErrorMessage(e));
       return false;
     }
   }
@@ -236,13 +237,12 @@ final class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  String _extractMessage(Object e) {
-    final str = e.toString();
-    if (str.contains('message:')) {
-      final start = str.indexOf('message:') + 8;
-      return str.substring(start).trim().replaceAll(')', '').trim();
+  String _getErrorMessage(Object error) {
+    if (error is AuthFailure) {
+      return error.message;
     }
-    return 'An unexpected error occurred. Please try again.';
+
+    return 'Something went wrong. Please try again.';
   }
 
   @override

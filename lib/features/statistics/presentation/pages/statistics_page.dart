@@ -134,16 +134,16 @@ class _StatisticsContent extends StatelessWidget {
                   children: [
                     Expanded(
                         child: _StatTile(
-                      label: 'Prayed',
+                      label: 'Jammah',
                       value: stats.totalPrayed.toString(),
-                      icon: Icons.check_circle_rounded,
+                      icon: Icons.people_alt_rounded,
                       iconColor: AppColors.prayedColor,
                     )),
                     Expanded(
                         child: _StatTile(
-                      label: 'Late',
+                      label: 'On Time',
                       value: stats.totalLatePrayed.toString(),
-                      icon: Icons.check_circle_outline,
+                      icon: Icons.person,
                       iconColor: AppColors.prayedLateColor,
                     )),
                     Expanded(
@@ -177,20 +177,33 @@ class _StatisticsContent extends StatelessWidget {
                 const SizedBox(height: AppSpacing.sm),
 
                 // Legend for the bar
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                const Column(
                   children: [
-                    _BarLegend(color: AppColors.prayedColor, label: 'Prayed'),
-                    SizedBox(width: AppSpacing.sm),
-                    _BarLegend(color: AppColors.prayedLateColor, label: 'Late'),
-                    SizedBox(width: AppSpacing.sm),
-                    _BarLegend(
-                        color: AppColors.qadaCompletedColor, label: 'Qada'),
-                    SizedBox(width: AppSpacing.sm),
-                    _BarLegend(color: AppColors.missedColor, label: 'Missed'),
-                    SizedBox(width: AppSpacing.sm),
-                    _BarLegend(
-                        color: AppColors.notRecordedColor, label: 'No Record'),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _BarLegend(
+                            color: AppColors.prayedColor, label: 'Jammah'),
+                        SizedBox(width: AppSpacing.sm),
+                        _BarLegend(
+                            color: AppColors.prayedLateColor, label: 'On Time'),
+                        SizedBox(width: AppSpacing.sm),
+                        _BarLegend(
+                            color: AppColors.qadaCompletedColor, label: 'Qada'),
+                        SizedBox(width: AppSpacing.sm),
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _BarLegend(
+                            color: AppColors.missedColor, label: 'Missed'),
+                        SizedBox(width: AppSpacing.sm),
+                        _BarLegend(
+                            color: AppColors.notRecordedColor,
+                            label: 'No Record'),
+                      ],
+                    )
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -264,7 +277,7 @@ class _StatisticsContent extends StatelessWidget {
                           const SizedBox(width: 72),
                           Expanded(
                               child: Text(
-                            '${c.prayedCount} prayed · ${c.latePrayedCount} late · ${c.missedCount} missed · ${c.qadaCount} qada',
+                            '${c.prayedCount} With Jammah · ${c.latePrayedCount} On Time\n${c.missedCount} Missed            · ${c.qadaCount} Qada',
                             style: Theme.of(context)
                                 .textTheme
                                 .labelSmall

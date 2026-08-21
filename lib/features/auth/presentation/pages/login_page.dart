@@ -1,12 +1,15 @@
 library;
 
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter/material.dart';
+import 'package:prayers_tracker_plus/features/auth/presentation/pages/email_verification_page.dart';
+import 'package:prayers_tracker_plus/features/auth/presentation/pages/forgot_password_page.dart';
+import 'package:prayers_tracker_plus/features/auth/presentation/providers/auth_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/app_loading_indicator.dart';
 import '../../../../core/widgets/app_snackbar.dart';
-import '../providers/auth_provider.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -40,6 +43,17 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted) return;
 
     if (success) {
+      // Check if email is verified.
+      final firebaseUser = FirebaseAuth.instance.currentUser;
+      if (firebaseUser != null && !firebaseUser.emailVerified) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => const EmailVerificationPage(),
+          ),
+        );
+        return;
+      }
+
       Navigator.of(context).pushReplacementNamed(AppRoutes.home);
     } else if (auth.errorMessage != null) {
       AppSnackbar.showError(context, auth.errorMessage!);
@@ -136,8 +150,11 @@ class _LoginPageState extends State<LoginPage> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () =>
-                        Navigator.of(context).pushNamed('/forgot-password'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ForgotPasswordPage(),
+                      ),
+                    ),
                     child: const Text('Forgot password?'),
                   ),
                 ),
@@ -161,11 +178,23 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                Center(
-                  child: TextButton(
+                const SizedBox(height: AppSpacing.md),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
                     onPressed: () => Navigator.of(context)
                         .pushReplacementNamed(AppRoutes.home),
-                    child: const Text('Continue without account'),
+                    icon: const Icon(Icons.person_outline_rounded),
+                    label: const Text('Continue as Guest'),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Center(
+                  child: Text(
+                    'Guest data is stored locally only.',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
                 ),
               ],

@@ -10,16 +10,16 @@ enum PrayerStatus {
   prayed,
   missed,
   prayedLate,
-  qadaCompleted,  // NEW: was missed, now completed as Qada
+  qadaCompleted, // NEW: was missed, now completed as Qada
 }
 
 extension PrayerStatusExtension on PrayerStatus {
   String get displayName => switch (this) {
-        PrayerStatus.notRecorded   => 'Not Recorded',
-        PrayerStatus.prayed        => 'Prayed',
-        PrayerStatus.missed        => 'Missed',
-        PrayerStatus.prayedLate    => 'Prayed Late',
-        PrayerStatus.qadaCompleted => 'Qada Completed',
+        PrayerStatus.notRecorded => 'Not Recorded',
+        PrayerStatus.prayed => 'With Jammah',
+        PrayerStatus.missed => 'Missed',
+        PrayerStatus.prayedLate => 'On Time',
+        PrayerStatus.qadaCompleted => 'Qada Prayed',
       };
 
   bool get isCompleted =>
@@ -68,19 +68,26 @@ final class PrayerRecordEntity extends Equatable {
     String? notes,
   }) {
     return PrayerRecordEntity(
-      id:          id,
-      userId:      userId,
-      date:        date,
-      prayerType:  prayerType,
-      status:      status ?? this.status,
-      createdAt:   createdAt,
-      updatedAt:   updatedAt ?? this.updatedAt,
-      notes:       notes ?? this.notes,
+      id: id,
+      userId: userId,
+      date: date,
+      prayerType: prayerType,
+      status: status ?? this.status,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      notes: notes ?? this.notes,
     );
   }
 
   @override
   List<Object?> get props => [
-        id, userId, date, prayerType, status, createdAt, updatedAt, notes,
+        id,
+        userId,
+        date,
+        prayerType,
+        status,
+        createdAt,
+        updatedAt,
+        notes,
       ];
 }

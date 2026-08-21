@@ -25,7 +25,7 @@ final class PrayerConsistencyEntity extends Equatable {
   final int qadaCount;
 
   double get consistencyPercentage =>
-      totalDays == 0 ? 0 : prayedCount / totalDays;
+      totalDays == 0 ? 0 : (prayedCount + latePrayedCount / 2) / totalDays;
 
   @override
   List<Object> get props => [

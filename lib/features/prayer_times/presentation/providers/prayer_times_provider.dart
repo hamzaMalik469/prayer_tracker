@@ -48,7 +48,7 @@ final class PrayerTimesProvider extends ChangeNotifier {
         ),
       ]);
 
-      // Compute end times using the next day's Fajr for Isha end.
+      // Connect tomorrow's Fajr as Isha's closing boundary while retaining Jama'ah times
       _todayTimes = results[0].withEndTimes(
         nextDayFajr: results[1].fajr.time,
       );
@@ -58,7 +58,7 @@ final class PrayerTimesProvider extends ChangeNotifier {
       notifyListeners();
 
       AppLogger.info(
-        'Prayer times calculated with end times for '
+        'Prayer times calculated with boundaries & Jama\'ah for '
         '${now.year}-${now.month}-${now.day}',
         tag: 'PrayerTimesProvider',
       );

@@ -117,11 +117,12 @@ final class QadaLocalDataSourceImpl implements QadaLocalDataSource {
   }
 
   @override
-  Stream<QadaSummaryEntity> watchSummary({required String userId}) async* {
-    while (true) {
-      yield await getSummary(userId: userId);
-      await Future<void>.delayed(const Duration(seconds: 2));
-    }
+  Stream<QadaSummaryEntity> watchSummary({required String userId}) {
+    // Use a shorter polling interval for better UX.
+    // ignore: inference_failure_on_instance_creation
+    return Stream.periodic(const Duration(milliseconds: 500))
+        .asyncMap((_) => getSummary(userId: userId))
+        .distinct();
   }
 
   // ── Mapping ───────────────────────────────────────────────────────────────

@@ -1,10 +1,8 @@
-/// Local-first prayer tracking repository.
-///
-/// Write strategy:
-///   1. Always write to local SQLite first.
-///   2. If authenticated (non-guest) → also write to Firestore.
-///   3. On reconnect → SyncService pushes unsynced local records.
 library;
+
+import 'dart:io';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../../core/helpers/guest_user_helper.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -32,13 +30,40 @@ final class PrayerTrackingRepositoryImpl implements PrayerTrackingRepository {
     required String userId,
     required DateTime date,
     required PrayerType prayerType,
-  }) {
+  }) async {
     final recordId = PrayerRecordEntity.buildId(
       userId: userId,
       date: date,
       prayerType: prayerType,
     );
-    return _local.getPrayerRecord(userId: userId, recordId: recordId);
+
+    // Try local first.
+    final local = await _local.getPrayerRecord(
+      userId: userId,
+      recordId: recordId,
+    );
+    if (local != null) return local;
+
+    // For authenticated users — try remote if local is empty.
+    if (!_isGuest(userId)) {
+      try {
+        final remote = await _remote.getPrayerRecord(
+          userId: userId,
+          recordId: recordId,
+        );
+        // Cache locally if found.
+        if (remote != null) {
+          await _local.upsertPrayerRecord(remote);
+          await _local.markAsSynced(recordId: recordId);
+        }
+        return remote;
+      } catch (e) {
+        AppLogger.warning('Remote getPrayerRecord failed',
+            error: e, tag: 'PrayerTrackingRepo');
+      }
+    }
+
+    return null;
   }
 
   @override
@@ -46,10 +71,32 @@ final class PrayerTrackingRepositoryImpl implements PrayerTrackingRepository {
     required String userId,
     required DateTime date,
   }) async {
+    // Always read from local — local is always up-to-date.
     final records = await _local.getPrayerRecordsForDate(
       userId: userId,
       date: date,
     );
+
+    // If local is empty and authenticated — try pulling from remote.
+    if (records.isEmpty && !_isGuest(userId)) {
+      try {
+        final remoteRecords = await _remote.getPrayerRecordsForDate(
+          userId: userId,
+          date: date,
+        );
+        if (remoteRecords.isNotEmpty) {
+          for (final record in remoteRecords) {
+            await _local.upsertPrayerRecord(record);
+            await _local.markAsSynced(recordId: record.id);
+          }
+          return _buildSummary(date, remoteRecords);
+        }
+      } catch (e) {
+        AppLogger.warning('Remote getDailySummary failed',
+            error: e, tag: 'PrayerTrackingRepo');
+      }
+    }
+
     return _buildSummary(date, records);
   }
 
@@ -59,11 +106,34 @@ final class PrayerTrackingRepositoryImpl implements PrayerTrackingRepository {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
+    // Always read from local.
     final records = await _local.getPrayerRecordsForRange(
       userId: userId,
       startDate: startDate,
       endDate: endDate,
     );
+
+    // If local is empty and authenticated — pull from remote.
+    if (records.isEmpty && !_isGuest(userId)) {
+      try {
+        final remoteRecords = await _remote.getPrayerRecordsForRange(
+          userId: userId,
+          startDate: startDate,
+          endDate: endDate,
+        );
+        if (remoteRecords.isNotEmpty) {
+          for (final record in remoteRecords) {
+            await _local.upsertPrayerRecord(record);
+            await _local.markAsSynced(recordId: record.id);
+          }
+          return _groupByDate(startDate, endDate, remoteRecords);
+        }
+      } catch (e) {
+        AppLogger.warning('Remote getSummariesForRange failed',
+            error: e, tag: 'PrayerTrackingRepo');
+      }
+    }
+
     return _groupByDate(startDate, endDate, records);
   }
 
@@ -99,52 +169,103 @@ final class PrayerTrackingRepositoryImpl implements PrayerTrackingRepository {
             updatedAt: now,
           );
 
-    // 1. Always write locally first.
+    // 1. ALWAYS write locally first — this is instant and never fails.
     await _local.upsertPrayerRecord(record);
 
-    // 2. Write to Firestore if not a guest user.
+    AppLogger.debug(
+      'Prayer saved locally: ${prayerType.identifier} → ${status.name}',
+      tag: 'PrayerTrackingRepo',
+    );
+
+    // 2. Try to sync to Firestore if authenticated + online.
+    //    This runs in background — UI already updated from local.
     if (!_isGuest(userId)) {
-      try {
-        await _remote.upsertPrayerRecord(
-          userId: userId,
-          date: date,
-          prayerType: prayerType,
-          status: status,
-        );
-        // Mark as synced if remote write succeeded.
-        await _local.markAsSynced(recordId: recordId);
-      } catch (e) {
-        AppLogger.warning(
-          'Remote write failed — record queued for sync.',
-          error: e,
-          tag: 'PrayerTrackingRepo',
-        );
-        // Local record remains unsynced — SyncService will retry.
-      }
+      _syncToRemote(
+        userId: userId,
+        date: date,
+        prayerType: prayerType,
+        status: status,
+        recordId: recordId,
+      );
     }
 
     return record;
   }
 
+  /// Fire-and-forget remote sync — does not block the UI.
+  Future<void> _syncToRemote({
+    required String userId,
+    required DateTime date,
+    required PrayerType prayerType,
+    required PrayerStatus status,
+    required String recordId,
+  }) async {
+    try {
+      final isOnline = await _hasInternetConnection();
+      if (!isOnline) {
+        AppLogger.debug(
+          'Offline — queued for sync: $recordId',
+          tag: 'PrayerTrackingRepo',
+        );
+        return;
+      }
+
+      await _remote.upsertPrayerRecord(
+        userId: userId,
+        date: date,
+        prayerType: prayerType,
+        status: status,
+      );
+
+      await _local.markAsSynced(recordId: recordId);
+
+      AppLogger.debug(
+        'Synced to remote: $recordId',
+        tag: 'PrayerTrackingRepo',
+      );
+    } catch (e) {
+      AppLogger.warning(
+        'Remote sync failed — will retry later: $recordId',
+        error: e,
+        tag: 'PrayerTrackingRepo',
+      );
+      // Record stays unsynced — SyncService will pick it up later.
+    }
+  }
+
+  /// KEY FIX: Always watch LOCAL database.
+  ///
+  /// Before: authenticated users watched Firestore (remote).
+  /// Problem: recordPrayer writes local first → UI watched remote →
+  ///          delay until Firestore confirmed → UI felt laggy or missed updates.
+  ///
+  /// Now: everyone watches local → instant UI update after recordPrayer.
   @override
   Stream<DailyPrayerSummaryEntity> watchDailySummary({
     required String userId,
     required DateTime date,
   }) {
-    // For guests: watch local SQLite.
-    if (_isGuest(userId)) {
-      return _local
-          .watchPrayerRecordsForDate(userId: userId, date: date)
-          .map((records) => _buildSummary(date, records));
-    }
-
-    // For authenticated: watch Firestore (has offline persistence).
-    return _remote
+    return _local
         .watchPrayerRecordsForDate(userId: userId, date: date)
         .map((records) => _buildSummary(date, records));
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Private helpers ───────────────────────────────────────────────────────
+
+  Future<bool> _hasInternetConnection() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult.contains(ConnectivityResult.none)) {
+        return false;
+      }
+      final result = await InternetAddress.lookup('google.com');
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } on SocketException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   DailyPrayerSummaryEntity _buildSummary(
     DateTime date,

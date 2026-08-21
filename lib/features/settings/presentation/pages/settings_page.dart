@@ -3,7 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:prayers_tracker_plus/core/helpers/demo_data_generator.dart';
+import 'package:prayers_tracker_plus/core/theme/app_colors.dart';
+import 'package:prayers_tracker_plus/features/prayer_tracking/presentation/providers/prayer_tracking_provider.dart';
+import 'package:prayers_tracker_plus/features/qada/presentation/providers/qada_provider.dart';
+import 'package:prayers_tracker_plus/features/settings/presentation/pages/backup_page.dart';
 import 'package:prayers_tracker_plus/features/settings/presentation/pages/custom_prayer_times_page.dart';
+import 'package:prayers_tracker_plus/features/statistics/presentation/providers/statistics_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -32,6 +38,109 @@ class SettingsPage extends StatelessWidget {
 class _SettingsBody extends StatelessWidget {
   const _SettingsBody();
 
+  Future<void> _generateDemoData(BuildContext context) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.userId == null) {
+      AppSnackbar.showError(context, 'No user ID available.');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(Icons.science_rounded,
+            color: Theme.of(ctx).colorScheme.primary, size: 36),
+        title: const Text('Generate Demo Data?'),
+        content: const Text(
+          'This will create 6 months of realistic prayer records '
+          'including prayed, missed, late, and Qada data.\n\n'
+          'Existing data for this user will be replaced.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Generate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    AppSnackbar.showSuccess(context, 'Generating demo data…');
+
+    final result = await DemoDataGenerator.generate(userId: auth.userId!);
+
+    if (!context.mounted) return;
+
+    // Refresh all providers.
+    await context
+        .read<PrayerTrackingProvider>()
+        .onDateChanged(userId: auth.userId!);
+    await context.read<StatisticsProvider>().refresh();
+    await context.read<QadaProvider>().initialise(userId: auth.userId!);
+
+    if (!context.mounted) return;
+
+    AppSnackbar.showSuccess(
+      context,
+      '${result.daysGenerated} days generated: '
+      '${result.prayedCount} prayed, '
+      '${result.missedCount} missed, '
+      '${result.qadaRecords} qada records.',
+    );
+  }
+
+  Future<void> _clearDemoData(BuildContext context) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.userId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Clear All Data?',
+            style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+        content: const Text(
+          'This will permanently delete ALL local prayer and Qada records '
+          'for this user. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear Everything'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    await DemoDataGenerator.clearAll(userId: auth.userId!);
+
+    if (!context.mounted) return;
+
+    await context
+        .read<PrayerTrackingProvider>()
+        .onDateChanged(userId: auth.userId!);
+    await context.read<StatisticsProvider>().refresh();
+    await context.read<QadaProvider>().initialise(userId: auth.userId!);
+
+    if (!context.mounted) return;
+
+    AppSnackbar.showSuccess(context, 'All data cleared.');
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
@@ -39,231 +148,521 @@ class _SettingsBody extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return ListView(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       children: [
-        // ── Prayer Calculation ─────────────────────────────────────────
-        _Header('Prayer Calculation'),
+        // ── Profile Card ─────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Row(
+                children: [
+                  // Avatar
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: auth.isGuest
+                        ? AppColors.warning.withOpacity(0.15)
+                        : colorScheme.primaryContainer,
+                    child:
+                        auth.isAuthenticated && auth.user?.displayName != null
+                            ? Text(
+                                auth.user!.displayName![0].toUpperCase(),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(
+                                      color: colorScheme.onPrimaryContainer,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              )
+                            : Icon(
+                                auth.isGuest
+                                    ? Icons.person_outline_rounded
+                                    : Icons.person_rounded,
+                                size: 28,
+                                color: auth.isGuest
+                                    ? AppColors.warning
+                                    : colorScheme.onPrimaryContainer,
+                              ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
 
-        ListTile(
-          leading: const Icon(Icons.calculate_outlined),
-          title: const Text('Calculation Method'),
-          subtitle: Text(settings.prayerSettings.calculationMethod.displayName),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => _showSelection<CalculationMethodEntity>(
-            context: context,
-            title: 'Calculation Method',
-            values: CalculationMethodEntity.values,
-            selected: settings.prayerSettings.calculationMethod,
-            labelOf: (m) => m.displayName,
-            onSelected: (method) async {
-              await settings.updatePrayerSettings(
-                settings.prayerSettings.copyWith(calculationMethod: method),
-              );
-              if (!context.mounted) return;
-              await _recalculate(context);
-              if (!context.mounted) return;
-              AppSnackbar.showSuccess(
-                context,
-                'Calculation method updated.',
-              );
-            },
-          ),
-        ),
+                  // Name + email / guest label
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          auth.isAuthenticated
+                              ? auth.user?.displayName ?? 'User'
+                              : 'Guest User',
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                        const SizedBox(height: 2),
+                        if (auth.isAuthenticated && auth.user?.email != null)
+                          Text(
+                            auth.user!.email,
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withOpacity(0.12),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.full),
+                            ),
+                            child: Text(
+                              'Local only — data not backed up',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                    color: AppColors.warning,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
 
-        ListTile(
-          leading: const Icon(Icons.mosque_outlined),
-          title: const Text('Madhab'),
-          // subtitle: Text(settings.prayerSettings.madhab.displayName),
-          subtitle: Text(
-            '${settings.prayerSettings.madhab.displayName} — affects Asr time',
-          ),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => _showSelection<MadhabEntity>(
-            context: context,
-            title: 'Madhab',
-            values: MadhabEntity.values,
-            selected: settings.prayerSettings.madhab,
-            labelOf: (m) => m.displayName,
-            onSelected: (madhab) async {
-              await settings.updatePrayerSettings(
-                settings.prayerSettings.copyWith(madhab: madhab),
-              );
-              if (!context.mounted) return;
-              await _recalculate(context);
-              if (!context.mounted) return;
-              AppSnackbar.showSuccess(context, 'Madhab updated.');
-            },
-          ),
-        ),
-
-        ListTile(
-          leading: const Icon(Icons.north_outlined),
-          title: const Text('High Latitude Rule'),
-          subtitle: Text(settings.prayerSettings.highLatitudeRule.displayName),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => _showSelection<HighLatitudeRuleEntity>(
-            context: context,
-            title: 'High Latitude Rule',
-            values: HighLatitudeRuleEntity.values,
-            selected: settings.prayerSettings.highLatitudeRule,
-            labelOf: (r) => r.displayName,
-            descriptionOf: (r) => _highLatDesc(r),
-            onSelected: (rule) async {
-              await settings.updatePrayerSettings(
-                settings.prayerSettings.copyWith(highLatitudeRule: rule),
-              );
-              if (!context.mounted) return;
-              await _recalculate(context);
-              if (!context.mounted) return;
-              AppSnackbar.showSuccess(context, 'High latitude rule updated.');
-            },
-          ),
-        ),
-        ListTile(
-          leading: const Icon(Icons.edit_calendar_rounded),
-          title: const Text('Custom Prayer Times'),
-          subtitle: const Text('Override calculated times manually'),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const CustomPrayerTimesPage(),
+                  // Sign in / Sign out icon
+                  if (auth.isGuest)
+                    IconButton(
+                      onPressed: () =>
+                          Navigator.of(context).pushNamed(AppRoutes.login),
+                      icon: Icon(
+                        Icons.login_rounded,
+                        color: colorScheme.primary,
+                      ),
+                      tooltip: 'Sign in',
+                    ),
+                ],
+              ),
             ),
           ),
         ),
 
-        // ── Location ───────────────────────────────────────────────────
-        _Header('Location'),
+        // ── Prayer Calculation Section ───────────────────────────────────
+        _SectionTitle(title: 'Prayer Calculation'),
 
-        ListTile(
-          leading: Icon(
-            settings.locationSettings.mode == LocationMode.automatic
-                ? Icons.my_location_rounded
-                : Icons.location_on_outlined,
-            color: colorScheme.primary,
-          ),
-          title: Text(
-            settings.locationSettings.mode == LocationMode.automatic
-                ? 'Automatic Location'
-                : 'Manual Location',
-          ),
-          subtitle: Text(
-            settings.locationSettings.cityName != null &&
-                    settings.locationSettings.cityName!.isNotEmpty
-                ? '${settings.locationSettings.cityName} '
-                    '(${settings.locationSettings.latitude.toStringAsFixed(4)}, '
-                    '${settings.locationSettings.longitude.toStringAsFixed(4)})'
-                : '${settings.locationSettings.latitude.toStringAsFixed(4)}, '
-                    '${settings.locationSettings.longitude.toStringAsFixed(4)}',
-          ),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => _showLocationSheet(context, settings),
-        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Card(
+            child: Column(
+              children: [
+                _SettingsTile(
+                  icon: Icons.calculate_outlined,
+                  title: 'Calculation Method',
+                  subtitle:
+                      settings.prayerSettings.calculationMethod.displayName,
+                  onTap: () => _showSelection<CalculationMethodEntity>(
+                    context: context,
+                    title: 'Calculation Method',
+                    values: CalculationMethodEntity.values,
+                    selected: settings.prayerSettings.calculationMethod,
+                    labelOf: (m) => m.displayName,
+                    onSelected: (method) async {
+                      await settings.updatePrayerSettings(
+                        settings.prayerSettings
+                            .copyWith(calculationMethod: method),
+                      );
+                      if (!context.mounted) return;
+                      await _recalculate(context);
+                    },
+                  ),
+                ),
+                _Divider(),
+                _SettingsTile(
+                  icon: Icons.mosque_outlined,
+                  title: 'Madhab',
+                  subtitle: settings.prayerSettings.madhab.displayName,
+                  onTap: () => _showSelection<MadhabEntity>(
+                    context: context,
+                    title: 'Madhab',
+                    values: MadhabEntity.values,
+                    selected: settings.prayerSettings.madhab,
+                    labelOf: (m) => m.displayName,
+                    onSelected: (madhab) async {
+                      await settings.updatePrayerSettings(
+                        settings.prayerSettings.copyWith(madhab: madhab),
+                      );
+                      if (!context.mounted) return;
+                      await _recalculate(context);
+                    },
+                  ),
+                ),
+                _Divider(),
+                _SettingsTile(
+                  icon: Icons.north_outlined,
+                  title: 'High Latitude Rule',
+                  subtitle:
+                      settings.prayerSettings.highLatitudeRule.displayName,
+                  onTap: () => _showSelection<HighLatitudeRuleEntity>(
+                    context: context,
+                    title: 'High Latitude Rule',
+                    values: HighLatitudeRuleEntity.values,
+                    selected: settings.prayerSettings.highLatitudeRule,
+                    labelOf: (r) => r.displayName,
+                    onSelected: (rule) async {
+                      await settings.updatePrayerSettings(
+                        settings.prayerSettings
+                            .copyWith(highLatitudeRule: rule),
+                      );
+                      if (!context.mounted) return;
+                      await _recalculate(context);
+                    },
+                  ),
+                ),
+                _Divider(),
+                // Locate the following section in SettingsPage's build method
+// and replace the Custom Prayer Times tile with this:
 
-        // ── Appearance ─────────────────────────────────────────────────
-        _Header('Appearance'),
-
-        ListTile(
-          leading: const Icon(Icons.brightness_6_outlined),
-          title: const Text('Theme'),
-          subtitle: Text(_themeName(settings.themeMode)),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => _showSelection<ThemeMode>(
-            context: context,
-            title: 'Theme',
-            values: ThemeMode.values,
-            selected: settings.themeMode,
-            labelOf: (m) => _themeName(m),
-            onSelected: (mode) async {
-              await settings.updateThemeMode(mode);
-            },
-          ),
-        ),
-
-        // ── Notifications ──────────────────────────────────────────────
-        _Header('Notifications'),
-
-        ListTile(
-          leading: const Icon(Icons.notifications_outlined),
-          title: const Text('Prayer Notifications'),
-          subtitle: const Text('Configure reminders for each prayer'),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const NotificationSettingsPage(),
+                _SettingsTile(
+                  icon: Icons.people_alt_outlined,
+                  title: 'Mosque Jama\'ah Times',
+                  subtitle: 'Set Jama\'ah timings for your mosque',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const CustomPrayerTimesPage(),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
 
-        // ── Account ────────────────────────────────────────────────────
-        _Header('Account'),
+        // ── Location Section ─────────────────────────────────────────────
+        _SectionTitle(title: 'Location'),
 
-        if (auth.isAuthenticated) ...[
-          ListTile(
-            leading: CircleAvatar(
-              backgroundColor: colorScheme.primaryContainer,
-              child: Text(
-                (auth.user?.displayName?.isNotEmpty == true
-                        ? auth.user!.displayName![0]
-                        : auth.user?.email?[0] ?? 'U')
-                    .toUpperCase(),
-                style: TextStyle(
-                  color: colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w700,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Card(
+            child: _SettingsTile(
+              icon: settings.locationSettings.mode == LocationMode.automatic
+                  ? Icons.my_location_rounded
+                  : Icons.location_on_outlined,
+              iconColor: colorScheme.primary,
+              title: settings.locationSettings.mode == LocationMode.automatic
+                  ? 'Automatic Location'
+                  : 'Manual Location',
+              subtitle: settings.locationSettings.cityName != null &&
+                      settings.locationSettings.cityName!.isNotEmpty
+                  ? '${settings.locationSettings.cityName} '
+                      '(${settings.locationSettings.latitude.toStringAsFixed(4)}, '
+                      '${settings.locationSettings.longitude.toStringAsFixed(4)})'
+                  : '${settings.locationSettings.latitude.toStringAsFixed(4)}, '
+                      '${settings.locationSettings.longitude.toStringAsFixed(4)}',
+              onTap: () => _showLocationSheet(context, settings),
+            ),
+          ),
+        ),
+
+        // ── Appearance Section ───────────────────────────────────────────
+        _SectionTitle(title: 'Appearance'),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Card(
+            child: _SettingsTile(
+              icon: Icons.brightness_6_outlined,
+              title: 'Theme',
+              subtitle: _themeName(settings.themeMode),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(AppRadius.full),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      settings.themeMode == ThemeMode.dark
+                          ? Icons.dark_mode_rounded
+                          : settings.themeMode == ThemeMode.light
+                              ? Icons.light_mode_rounded
+                              : Icons.brightness_auto_rounded,
+                      size: 14,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _themeName(settings.themeMode),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              onTap: () => _showSelection<ThemeMode>(
+                context: context,
+                title: 'Theme',
+                values: ThemeMode.values,
+                selected: settings.themeMode,
+                labelOf: (m) => _themeName(m),
+                onSelected: settings.updateThemeMode,
+              ),
+            ),
+          ),
+        ),
+
+        // ── Notifications Section ────────────────────────────────────────
+        _SectionTitle(title: 'Notifications'),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Card(
+            child: _SettingsTile(
+              icon: Icons.notifications_outlined,
+              title: 'Prayer Notifications',
+              subtitle: 'Configure reminders for each prayer',
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: settings.notificationsEnabled
+                      ? AppColors.prayedColor.withOpacity(0.12)
+                      : colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(AppRadius.full),
+                ),
+                child: Text(
+                  settings.notificationsEnabled ? 'ON' : 'OFF',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: settings.notificationsEnabled
+                            ? AppColors.prayedColor
+                            : colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationSettingsPage(),
                 ),
               ),
             ),
-            title: Text(
-              auth.user?.displayName?.isNotEmpty == true
-                  ? auth.user!.displayName!
-                  : 'User',
+          ),
+        ),
+
+        // ── Backup & Sync Section ────────────────────────────────────────
+        _SectionTitle(title: 'Backup & Sync'),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Card(
+            child: _SettingsTile(
+              icon: auth.isGuest
+                  ? Icons.cloud_off_rounded
+                  : Icons.cloud_done_rounded,
+              iconColor:
+                  auth.isGuest ? AppColors.warning : AppColors.prayedColor,
+              title: auth.isGuest ? 'Local Only' : 'Cloud Backup Active',
+              subtitle: auth.isGuest
+                  ? 'Sign in to enable cloud backup'
+                  : 'Your data is synced across devices',
+              trailing: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color:
+                      auth.isGuest ? AppColors.warning : AppColors.prayedColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const BackupPage(),
+                ),
+              ),
             ),
-            subtitle: auth.user?.email != null ? Text(auth.user!.email) : null,
           ),
-          ListTile(
-            leading: const Icon(Icons.logout_rounded),
-            title: const Text('Sign Out'),
-            onTap: () => _confirmSignOut(context),
-          ),
-          ListTile(
-            leading:
-                Icon(Icons.delete_outline_rounded, color: colorScheme.error),
-            title: Text('Delete Account',
-                style: TextStyle(color: colorScheme.error)),
-            onTap: () => _confirmDeleteAccount(context),
-          ),
-        ] else ...[
-          ListTile(
-            leading: Icon(Icons.login_rounded, color: colorScheme.primary),
-            title: const Text('Sign In / Create Account'),
-            subtitle: const Text('Sync prayers across devices'),
-            onTap: () => Navigator.of(context).pushNamed(AppRoutes.login),
+        ),
+
+        // ── Account Actions ──────────────────────────────────────────────
+        if (auth.isAuthenticated) ...[
+          _SectionTitle(title: 'Account'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Card(
+              child: Column(
+                children: [
+                  _SettingsTile(
+                    icon: Icons.logout_rounded,
+                    title: 'Sign Out',
+                    subtitle: 'Stay signed in for cloud sync',
+                    iconColor: colorScheme.onSurfaceVariant,
+                    onTap: () => _confirmSignOut(context),
+                  ),
+                  _Divider(),
+                  _SettingsTile(
+                    icon: Icons.delete_outline_rounded,
+                    title: 'Delete Account',
+                    subtitle: 'Permanently remove all your data',
+                    iconColor: colorScheme.error,
+                    titleColor: colorScheme.error,
+                    onTap: () => _confirmDeleteAccount(context),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
 
-        // ── Privacy ────────────────────────────────────────────────────
-        _Header('Privacy & Data'),
+        // ── Privacy & Data ───────────────────────────────────────────────
+        _SectionTitle(title: 'Privacy & Data'),
 
-        ListTile(
-          leading: const Icon(Icons.privacy_tip_outlined),
-          title: const Text('What data we collect'),
-          onTap: () => _showPrivacyDialog(context),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Card(
+            child: Column(
+              children: [
+                _SettingsTile(
+                  icon: Icons.privacy_tip_outlined,
+                  title: 'Privacy Policy',
+                  subtitle: 'What data we collect and how we use it',
+                  onTap: () => _showPrivacyDialog(context),
+                ),
+                _Divider(),
+                _SettingsTile(
+                  icon: Icons.delete_sweep_outlined,
+                  title: 'Clear Local Data',
+                  subtitle: 'Remove cached data from this device',
+                  iconColor: colorScheme.error,
+                  titleColor: colorScheme.error,
+                  onTap: () => _confirmClearLocal(context),
+                ),
+              ],
+            ),
+          ),
         ),
 
-        ListTile(
-          leading: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
-          title: Text('Clear Local Data',
-              style: TextStyle(color: colorScheme.error)),
-          subtitle: const Text('Removes locally cached data from this device'),
-          onTap: () => _confirmClearLocal(context),
-        ),
+        // ── Developer Tools (debug only) ─────────────────────────────────
+        // if (true) ...[
+        //   // Change to AppConfig.instance.isDevelopment for production
+        //   _SectionTitle(title: 'Developer Tools'),
 
-        // ── App info ───────────────────────────────────────────────────
-        _Header('About'),
+        //   Padding(
+        //     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        //     child: Card(
+        //       child: Column(
+        //         children: [
+        //           _SettingsTile(
+        //             icon: Icons.science_rounded,
+        //             title: 'Generate Demo Data',
+        //             subtitle: '6 months of realistic prayer records',
+        //             onTap: () => _generateDemoData(context),
+        //           ),
+        //           _Divider(),
+        //           _SettingsTile(
+        //             icon: Icons.delete_forever_rounded,
+        //             title: 'Clear All Data',
+        //             subtitle: 'Remove all local prayer and Qada records',
+        //             iconColor: colorScheme.error,
+        //             titleColor: colorScheme.error,
+        //             onTap: () => _clearDemoData(context),
+        //           ),
+        //         ],
+        //       ),
+        //     ),
+        //   ),
+        // ],
 
-        ListTile(
-          leading: const Icon(Icons.info_outline_rounded),
-          title: const Text('Daily Deen'),
-          subtitle: const Text('Prayer tracking for Muslims'),
+        // ── About ────────────────────────────────────────────────────────
+        _SectionTitle(title: 'About'),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                    ),
+                    child: Icon(
+                      Icons.mosque_outlined,
+                      color: colorScheme.primary,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Daily Deen',
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                        Text(
+                          'Your daily prayer companion',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                        ),
+                        // Text(
+                        //   'Track your prayers and pray for Deveoper(Hamza Hussain). May Allah bless Him. ',
+                        //   style:
+                        //       Theme.of(context).textTheme.bodySmall?.copyWith(
+                        //             color: colorScheme.onSurfaceVariant,
+                        //           ),
+                        // ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    'v1.0.0',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
+        const SizedBox(height: AppSpacing.lg),
+        Center(
+            child: Text(
+          'Love by HAMZA HUSSAIN',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+              ),
+        )),
 
         const SizedBox(height: AppSpacing.xxl),
       ],
@@ -890,6 +1289,141 @@ class _Header extends StatelessWidget {
               fontWeight: FontWeight.w700,
               letterSpacing: 1.2,
             ),
+      ),
+    );
+  }
+}
+
+// ── Section Title ─────────────────────────────────────────────────────────────
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.xs,
+      ),
+      child: Text(
+        title.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+            ),
+      ),
+    );
+  }
+}
+
+// ── Settings Tile ─────────────────────────────────────────────────────────────
+
+class _SettingsTile extends StatelessWidget {
+  const _SettingsTile({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.iconColor,
+    this.titleColor,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final Color? iconColor;
+  final Color? titleColor;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
+        child: Row(
+          children: [
+            // Icon with background
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: (iconColor ?? colorScheme.primary).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: iconColor ?? colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+
+            // Title + subtitle
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: titleColor,
+                        ),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                ],
+              ),
+            ),
+
+            // Trailing widget or chevron
+            if (trailing != null)
+              trailing!
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                size: 20,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Card Divider ──────────────────────────────────────────────────────────────
+
+class _Divider extends StatelessWidget {
+  const _Divider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Divider(
+        height: 1,
+        color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
       ),
     );
   }

@@ -139,7 +139,10 @@ final class FirebaseAuthDataSourceImpl implements FirebaseAuthDataSource {
   AuthFailure _mapFirebaseAuthException(FirebaseAuthException e) {
     final message = switch (e.code) {
       'user-not-found' => 'No account found with this email address.',
-      'wrong-password' => 'Incorrect password. Please try again.',
+      'wrong-password' =>
+        'The email or password is incorrect. Please check your credentials and try again.',
+      'invalid-credential' =>
+        'The email or password is incorrect. Please check your credentials and try again.',
       'email-already-in-use' => 'An account already exists with this email.',
       'invalid-email' => 'Please enter a valid email address.',
       'weak-password' => 'Password must be at least 6 characters.',
@@ -149,7 +152,6 @@ final class FirebaseAuthDataSourceImpl implements FirebaseAuthDataSource {
         'Network error. Please check your connection.',
       'requires-recent-login' =>
         'Please sign in again to complete this action.',
-      'invalid-credential' => 'Invalid credentials. Please try again.',
       _ => 'Authentication failed. Please try again.',
     };
     return AuthFailure(message: message, code: e.code);

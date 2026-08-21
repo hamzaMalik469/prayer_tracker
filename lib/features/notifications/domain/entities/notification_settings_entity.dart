@@ -1,4 +1,3 @@
-/// Per-prayer notification configuration.
 library;
 
 import 'package:equatable/equatable.dart';
@@ -13,6 +12,8 @@ final class PrayerNotificationConfig extends Equatable {
     this.minutesAfter,
     required this.soundEnabled,
     required this.vibrationEnabled,
+    required this.jamaahEnabled,
+    required this.minutesBeforeJamaah,
   });
 
   const PrayerNotificationConfig.defaultFor(PrayerType type)
@@ -21,20 +22,27 @@ final class PrayerNotificationConfig extends Equatable {
         minutesBefore = 0,
         minutesAfter = null,
         soundEnabled = true,
-        vibrationEnabled = true;
+        vibrationEnabled = true,
+        jamaahEnabled = true,
+        minutesBeforeJamaah = 5; // 5 minutes before Jama'ah by default
 
   final PrayerType prayerType;
   final bool enabled;
 
-  /// Minutes before prayer time to send reminder. 0 = at prayer time.
+  /// Minutes before prayer astronomical start time to send reminder.
   final int minutesBefore;
 
   /// Minutes after prayer time to send a follow-up reminder (Premium).
-  /// Null = no post-prayer reminder.
   final int? minutesAfter;
 
   final bool soundEnabled;
   final bool vibrationEnabled;
+
+  /// Whether to send a reminder before the local mosque's Jama'ah time.
+  final bool jamaahEnabled;
+
+  /// Minutes before the Jama'ah time to send the reminder.
+  final int minutesBeforeJamaah;
 
   PrayerNotificationConfig copyWith({
     bool? enabled,
@@ -42,6 +50,8 @@ final class PrayerNotificationConfig extends Equatable {
     int? minutesAfter,
     bool? soundEnabled,
     bool? vibrationEnabled,
+    bool? jamaahEnabled,
+    int? minutesBeforeJamaah,
   }) {
     return PrayerNotificationConfig(
       prayerType: prayerType,
@@ -50,6 +60,8 @@ final class PrayerNotificationConfig extends Equatable {
       minutesAfter: minutesAfter ?? this.minutesAfter,
       soundEnabled: soundEnabled ?? this.soundEnabled,
       vibrationEnabled: vibrationEnabled ?? this.vibrationEnabled,
+      jamaahEnabled: jamaahEnabled ?? this.jamaahEnabled,
+      minutesBeforeJamaah: minutesBeforeJamaah ?? this.minutesBeforeJamaah,
     );
   }
 
@@ -61,6 +73,8 @@ final class PrayerNotificationConfig extends Equatable {
         minutesAfter,
         soundEnabled,
         vibrationEnabled,
+        jamaahEnabled,
+        minutesBeforeJamaah,
       ];
 }
 

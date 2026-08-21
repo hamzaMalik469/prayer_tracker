@@ -334,42 +334,63 @@ final class PrayerNotificationBuilder {
       final config = settings.configFor(prayer.prayerType);
       if (!config.enabled) continue;
 
-      final notificationId = _buildId(
+      // ── 1. Astronomical Start Time Reminder ─────────────────────────────
+      final startNotificationId = _buildId(
         date: prayer.date,
         prayerType: prayer.prayerType,
-        isPreReminder: false,
+        idTypeOffset: 0, // offset 0 for start times
       );
 
-      // At-time notification (or minutesBefore offset).
       final notificationTime =
           prayer.time.subtract(Duration(minutes: config.minutesBefore));
 
       notifications.add(
         _ScheduledNotification(
-          id: notificationId,
+          id: startNotificationId,
           title: _title(prayer.prayerType),
-          body: _body(
-            prayer.prayerType,
-            minutesBefore: config.minutesBefore,
-          ),
+          body: _body(prayer.prayerType, minutesBefore: config.minutesBefore),
           scheduledTime: notificationTime,
           soundEnabled: config.soundEnabled,
           vibrationEnabled: config.vibrationEnabled,
         ),
       );
 
-      // Post-prayer reminder (Premium feature — only scheduled if set).
+      // ── 2. Mosque Jama'ah Jama\'ah Reminder ────────────────────────
+      if (prayer.hasJamaah && config.jamaahEnabled) {
+        final jamaahNotificationId = _buildId(
+          date: prayer.date,
+          prayerType: prayer.prayerType,
+          idTypeOffset: 200, // offset 200 for Jama'ah times
+        );
+
+        final jamaahNotificationTime = prayer.jamaahTime!
+            .subtract(Duration(minutes: config.minutesBeforeJamaah));
+
+        notifications.add(
+          _ScheduledNotification(
+            id: jamaahNotificationId,
+            title: '${prayer.prayerType.displayName} Jama\'ah Reminder',
+            body:
+                'Jama\'ah begins in ${config.minutesBeforeJamaah} minutes at mosque.',
+            scheduledTime: jamaahNotificationTime,
+            soundEnabled: config.soundEnabled,
+            vibrationEnabled: config.vibrationEnabled,
+          ),
+        );
+      }
+
+      // ── 3. Post-Prayer Follow-up Reminder (Premium) ─────────────────────
       if (config.minutesAfter != null && config.minutesAfter! > 0) {
         final postId = _buildId(
           date: prayer.date,
           prayerType: prayer.prayerType,
-          isPreReminder: true,
+          idTypeOffset: 500, // offset 500 for post-prayers
         );
 
         notifications.add(
           _ScheduledNotification(
             id: postId,
-            title: '${prayer.prayerType.displayName} reminder',
+            title: '${prayer.prayerType.displayName} Reminder',
             body: 'Have you prayed ${prayer.prayerType.displayName} yet?',
             scheduledTime:
                 prayer.time.add(Duration(minutes: config.minutesAfter!)),
@@ -386,12 +407,12 @@ final class PrayerNotificationBuilder {
   static int _buildId({
     required DateTime date,
     required PrayerType prayerType,
-    required bool isPreReminder,
+    required int idTypeOffset,
   }) {
     final dayOfYear = date.difference(DateTime(date.year)).inDays;
     final prayerIndex = _prayerIndex(prayerType);
     final base = (dayOfYear * 10) + prayerIndex;
-    return isPreReminder ? base + 500 : base;
+    return base + idTypeOffset;
   }
 
   static int _prayerIndex(PrayerType type) => switch (type) {

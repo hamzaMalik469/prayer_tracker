@@ -27,10 +27,8 @@ final class DailyPrayerTimesEntity extends Equatable {
   final double latitude;
   final double longitude;
 
-  /// All six prayer/auxiliary times in chronological order.
   List<PrayerTimeEntity> get all => [fajr, sunrise, dhuhr, asr, maghrib, isha];
 
-  /// The five obligatory prayers in order.
   List<PrayerTimeEntity> get obligatory => [fajr, dhuhr, asr, maghrib, isha];
 
   PrayerTimeEntity forType(PrayerType type) => switch (type) {
@@ -42,7 +40,6 @@ final class DailyPrayerTimesEntity extends Equatable {
         PrayerType.isha => isha,
       };
 
-  /// Returns the next prayer after [now], or null if all have passed.
   PrayerTimeEntity? nextPrayerAfter(DateTime now) {
     for (final prayer in all) {
       if (prayer.time.isAfter(now)) return prayer;
@@ -50,51 +47,75 @@ final class DailyPrayerTimesEntity extends Equatable {
     return null;
   }
 
-  /// Returns the currently active prayer (the one whose window is open).
   PrayerTimeEntity? currentPrayer(DateTime now) {
-    // Check obligatory prayers in reverse — the latest one whose
-    // start time has passed and end time has not is the active one.
     for (final prayer in obligatory.reversed) {
       if (prayer.isActive(now)) return prayer;
     }
     return null;
   }
 
-  /// Returns the most recent prayer whose start time has passed.
-  PrayerTimeEntity? lastStartedPrayer(DateTime now) {
-    PrayerTimeEntity? current;
-    for (final prayer in all) {
-      if (!prayer.time.isAfter(now)) {
-        current = prayer;
+  /// Appends calculated astronomical end times and preserves or applies Jama'ah times.
+  DailyPrayerTimesEntity withEndTimes({
+    DateTime? nextDayFajr,
+    Map<String, String>? rawJamaahMap,
+  }) {
+    DateTime? parseJamaah(PrayerType type, DateTime prayerDate) {
+      if (rawJamaahMap == null) return forType(type).jamaahTime;
+      final timeStr = rawJamaahMap[type.identifier];
+      if (timeStr == null || timeStr.isEmpty) return forType(type).jamaahTime;
+
+      try {
+        final parts = timeStr.split(':');
+        return DateTime(
+          prayerDate.year,
+          prayerDate.month,
+          prayerDate.day,
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+        );
+      } catch (_) {
+        return forType(type).jamaahTime;
       }
     }
-    return current;
-  }
 
-  /// Returns a copy with end times computed from the prayer sequence.
-  ///
-  /// Prayer window logic:
-  ///   Fajr    → ends at Sunrise
-  ///   Sunrise → no window (not a prayer)
-  ///   Dhuhr   → ends at Asr
-  ///   Asr     → ends at Maghrib
-  ///   Maghrib → ends at Isha
-  ///   Isha    → ends at next day Fajr (passed as [nextDayFajr])
-  DailyPrayerTimesEntity withEndTimes({DateTime? nextDayFajr}) {
     return DailyPrayerTimesEntity(
       date: date,
-      fajr: fajr.copyWith(endTime: sunrise.time),
-      sunrise: sunrise, // no end time — not a prayer
-      dhuhr: dhuhr.copyWith(endTime: asr.time),
-      asr: asr.copyWith(endTime: maghrib.time),
-      maghrib: maghrib.copyWith(endTime: isha.time),
+      fajr: fajr.copyWith(
+        endTime: sunrise.time,
+        jamaahTime: parseJamaah(PrayerType.fajr, date),
+      ),
+      sunrise: sunrise,
+      dhuhr: dhuhr.copyWith(
+        endTime: asr.time,
+        jamaahTime: parseJamaah(PrayerType.dhuhr, date),
+      ),
+      asr: asr.copyWith(
+        endTime: maghrib.time,
+        jamaahTime: parseJamaah(PrayerType.asr, date),
+      ),
+      maghrib: maghrib.copyWith(
+        endTime: isha.time,
+        jamaahTime: parseJamaah(PrayerType.maghrib, date),
+      ),
       isha: isha.copyWith(
-        endTime: nextDayFajr ?? date.add(const Duration(days: 1)),
+        endTime:
+            nextDayFajr ?? isha.endTime ?? date.add(const Duration(days: 1)),
+        jamaahTime: parseJamaah(PrayerType.isha, date),
       ),
       latitude: latitude,
       longitude: longitude,
     );
   }
+
+  /// Alias for repository usage
+  DailyPrayerTimesEntity withEndAndJamaahTimes({
+    DateTime? nextDayFajr,
+    Map<String, String>? rawJamaahMap,
+  }) =>
+      withEndTimes(
+        nextDayFajr: nextDayFajr,
+        rawJamaahMap: rawJamaahMap,
+      );
 
   @override
   List<Object> get props => [

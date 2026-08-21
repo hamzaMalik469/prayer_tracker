@@ -150,11 +150,11 @@ final class PrayerTrackingLocalDataSourceImpl
   Stream<List<PrayerRecordEntity>> watchPrayerRecordsForDate({
     required String userId,
     required DateTime date,
-  }) async* {
-    while (true) {
-      yield await getPrayerRecordsForDate(userId: userId, date: date);
-      await Future<void>.delayed(const Duration(seconds: 2));
-    }
+  }) {
+    // ignore: inference_failure_on_instance_creation
+    return Stream.periodic(const Duration(milliseconds: 500))
+        .asyncMap((_) => getPrayerRecordsForDate(userId: userId, date: date))
+        .distinct();
   }
 
   // ── Mapping ───────────────────────────────────────────────────────────────

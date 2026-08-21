@@ -35,6 +35,7 @@ final class QadaProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isUpdating = false;
   String? _errorMessage;
+  String? _userId;
 
   QadaSummaryEntity get summary => _summary;
   bool get isLoading => _isLoading;
@@ -44,6 +45,7 @@ final class QadaProvider extends ChangeNotifier {
   int get totalPending => _summary.totalPending;
 
   Future<void> initialise({required String userId}) async {
+    _userId = userId;
     _isLoading = true;
     notifyListeners();
 
@@ -52,6 +54,14 @@ final class QadaProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
 
+      AppLogger.info(
+        'Qada loaded: ${_summary.totalPending} pending, '
+        '${_summary.totalCompleted} completed.',
+        tag: 'QadaProvider',
+      );
+
+      // Watch for real-time changes.
+      _subscription?.cancel();
       _subscription = _watchQadaSummary(
         WatchQadaSummaryParams(userId: userId),
       ).listen(
@@ -60,18 +70,38 @@ final class QadaProvider extends ChangeNotifier {
           notifyListeners();
         },
         onError: (Object e) {
-          AppLogger.warning('Qada stream error', error: e, tag: 'QadaProvider');
+          AppLogger.warning(
+            'Qada stream error',
+            error: e,
+            tag: 'QadaProvider',
+          );
         },
       );
     } catch (e) {
-      AppLogger.error('Failed to load Qada', error: e, tag: 'QadaProvider');
+      AppLogger.error(
+        'Failed to load Qada',
+        error: e,
+        tag: 'QadaProvider',
+      );
       _isLoading = false;
       _errorMessage = 'Could not load Qada records.';
       notifyListeners();
     }
   }
 
-  /// Add a missed prayer to Qada for a specific date.
+  /// Refreshes Qada data from repository.
+  Future<void> _refresh() async {
+    if (_userId == null) return;
+    try {
+      _summary = await _getQadaSummary(
+        GetQadaSummaryParams(userId: _userId!),
+      );
+      notifyListeners();
+    } catch (e) {
+      AppLogger.warning('Qada refresh failed', error: e, tag: 'QadaProvider');
+    }
+  }
+
   Future<bool> addQadaRecord({
     required String userId,
     required DateTime missedDate,
@@ -92,10 +122,22 @@ final class QadaProvider extends ChangeNotifier {
         ),
       );
       _isUpdating = false;
-      notifyListeners();
+
+      // Force immediate refresh to update UI.
+      await _refresh();
+
+      AppLogger.info(
+        'Qada record added: ${prayerType.identifier}',
+        tag: 'QadaProvider',
+      );
+
       return true;
     } catch (e) {
-      AppLogger.error('addQadaRecord failed', error: e, tag: 'QadaProvider');
+      AppLogger.error(
+        'addQadaRecord failed',
+        error: e,
+        tag: 'QadaProvider',
+      );
       _isUpdating = false;
       _errorMessage = 'Could not add Qada record.';
       notifyListeners();
@@ -103,7 +145,6 @@ final class QadaProvider extends ChangeNotifier {
     }
   }
 
-  /// Complete a specific Qada record — updates original prayer to qadaCompleted.
   Future<bool> completeQadaRecord({
     required String userId,
     required QadaRecordEntity record,
@@ -122,11 +163,22 @@ final class QadaProvider extends ChangeNotifier {
         ),
       );
       _isUpdating = false;
-      notifyListeners();
+
+      // Force immediate refresh to update UI.
+      await _refresh();
+
+      AppLogger.info(
+        'Qada completed: ${record.prayerType.identifier}',
+        tag: 'QadaProvider',
+      );
+
       return true;
     } catch (e) {
-      AppLogger.error('completeQadaRecord failed',
-          error: e, tag: 'QadaProvider');
+      AppLogger.error(
+        'completeQadaRecord failed',
+        error: e,
+        tag: 'QadaProvider',
+      );
       _isUpdating = false;
       _errorMessage = 'Could not complete Qada record.';
       notifyListeners();

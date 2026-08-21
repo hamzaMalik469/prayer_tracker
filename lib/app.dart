@@ -1,6 +1,9 @@
 library;
 
+import 'package:device_preview/device_preview.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:prayers_tracker_plus/features/auth/presentation/pages/forgot_password_page.dart';
 import 'package:prayers_tracker_plus/features/qada/domain/usecases/add_qada_record.dart';
 import 'package:prayers_tracker_plus/features/qada/domain/usecases/complete_qada_record.dart';
 import 'package:prayers_tracker_plus/features/qada/domain/usecases/get_qada_summary.dart';
@@ -150,7 +153,8 @@ class DailyDeenApp extends StatelessWidget {
           )..initialise(),
         ),
       ],
-      child: const _AppView(),
+      child:
+          DevicePreview(enabled: false, builder: (context) => const _AppView()),
     );
   }
 }
@@ -177,6 +181,7 @@ class _AppView extends StatelessWidget {
         AppRoutes.login: (_) => const LoginPage(),
         AppRoutes.register: (_) => const RegisterPage(),
         AppRoutes.home: (_) => const HomePage(),
+        AppRoutes.forgetPassword: (_) => const ForgotPasswordPage(),
       },
     );
   }

@@ -3,11 +3,11 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:prayers_tracker_plus/features/prayer_times/domain/entities/prayer_time_entity.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../prayer_times/domain/entities/prayer_time_entity.dart';
 import '../../../prayer_times/presentation/providers/next_prayer_provider.dart';
 import '../../../prayer_times/presentation/providers/prayer_times_provider.dart';
 
@@ -74,224 +74,126 @@ class NextPrayerCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // // ─────────────────────────────────────────────────────────────
-          // // HEADER
-          // // ─────────────────────────────────────────────────────────────
-          // Row(
-          //   children: [
-          //     Container(
-          //       width: 34,
-          //       height: 34,
-          //       decoration: BoxDecoration(
-          //         color: colorScheme.primary.withOpacity(0.10),
-          //         borderRadius: BorderRadius.circular(AppRadius.sm),
-          //       ),
-          //       child: Icon(
-          //         Icons.access_time_rounded,
-          //         size: 18,
-          //         color: colorScheme.primary,
-          //       ),
-          //     ),
-          //     const SizedBox(width: AppSpacing.sm),
-          //     Column(
-          //       crossAxisAlignment: CrossAxisAlignment.start,
-          //       children: [
-          //         Text(
-          //           'NEXT PRAYER',
-          //           style: theme.textTheme.labelSmall?.copyWith(
-          //             fontWeight: FontWeight.w700,
-          //             letterSpacing: 1.1,
-          //             color: colorScheme.primary,
-          //           ),
-          //         ),
-          //         const SizedBox(height: 2),
-          //         Text(
-          //           'Stay mindful of your salah',
-          //           style: theme.textTheme.bodySmall?.copyWith(
-          //             color: colorScheme.onSurfaceVariant,
-          //           ),
-          //         ),
-          //       ],
-          //     ),
-          //     const Spacer(),
-
-          //     // Tomorrow badge
-          //     if (nextPrayerProvider.nextPrayerResult?.isNextDay == true)
-          //       Container(
-          //         padding: const EdgeInsets.symmetric(
-          //           horizontal: AppSpacing.sm,
-          //           vertical: 5,
-          //         ),
-          //         decoration: BoxDecoration(
-          //           color: colorScheme.surfaceContainerHighest,
-          //           borderRadius: BorderRadius.circular(AppRadius.full),
-          //         ),
-          //         child: Row(
-          //           mainAxisSize: MainAxisSize.min,
-          //           children: [
-          //             Icon(
-          //               Icons.nightlight_round,
-          //               size: 13,
-          //               color: colorScheme.onSurfaceVariant,
-          //             ),
-          //             const SizedBox(width: 4),
-          //             Text(
-          //               'Tomorrow',
-          //               style: theme.textTheme.labelSmall?.copyWith(
-          //                 fontWeight: FontWeight.w600,
-          //                 color: colorScheme.onSurfaceVariant,
-          //               ),
-          //             ),
-          //           ],
-          //         ),
-          //       ),
-          //   ],
-          // ),
-
-          // const SizedBox(height: AppSpacing.lg),
-
-          // ─────────────────────────────────────────────────────────────
-          // CURRENT PRAYER STATUS
-          // ─────────────────────────────────────────────────────────────
-          if (currentPrayer != null) ...[
-            _CurrentPrayerBanner(
-              prayerName: currentPrayer.prayerType.displayName,
-              endTime: currentPrayer.endTime,
-              formatTime: _formatTime,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-          ],
-
-          // ─────────────────────────────────────────────────────────────
-          // MAIN PRAYER AREA
-          // ─────────────────────────────────────────────────────────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Prayer information
+              // ── LEFT COLUMN: CURRENT PRAYER (ACTIVE) ─────────────────────
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      nextPrayer.prayerType.displayName,
-                      style: theme.textTheme.headlineMedium?.copyWith(
+                      'CURRENT',
+                      style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w800,
-                        height: 1.1,
+                        letterSpacing: 1.2,
+                        color: AppColors.prayedColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      currentPrayer != null
+                          ? currentPrayer.prayerType.displayName
+                          : 'Sunrise',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
                         letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.schedule_rounded,
-                          size: 15,
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      currentPrayer != null
+                          ? _formatTime(currentPrayer.time)
+                          : _formatTime(todayTimes.sunrise.time),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    if (currentPrayer != null &&
+                        currentPrayer.endTime != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Ends ${_formatTime(currentPrayer.endTime!)}',
+                        style: theme.textTheme.labelSmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
-                        const SizedBox(width: 5),
-                        Text(
-                          _formatTime(nextPrayer.time),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                    // 👥 JAMA'AH PILL INDICATOR
-                    if (nextPrayer.hasJamaah)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.people_alt_rounded,
-                              size: 15, color: colorScheme.primary),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Jama\'ah: ${_formatTime(nextPrayer.jamaahTime!)}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: colorScheme.primary,
-                                ),
-                          ),
-                        ],
-                      ),
-
-                    if (nextPrayer.endTime != null) ...[
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.timer_outlined,
-                            size: 15,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Ends ${_formatTime(nextPrayer.endTime!)}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ],
                 ),
               ),
 
-              const SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.sm),
 
-              // Countdown circle
+              // ── CENTER COLUMN: COUNTDOWN CONTAINER ──────────────────────
               _CountdownCircle(
                 duration: timeRemaining,
                 progress: progress,
                 formattedDuration: _formatDuration(timeRemaining),
               ),
+
+              const SizedBox(width: AppSpacing.sm),
+
+              // ── RIGHT COLUMN: NEXT PRAYER ────────────────────────────────
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'UPCOMING',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      nextPrayer.prayerType.displayName,
+                      textAlign: TextAlign.end,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      _formatTime(nextPrayer.time),
+                      textAlign: TextAlign.end,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    if (nextPrayer.hasJamaah) ...[
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(AppRadius.xs),
+                        ),
+                        child: Text(
+                          'J: ${_formatTime(nextPrayer.jamaahTime!)}',
+                          textAlign: TextAlign.end,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
-
-          const SizedBox(height: AppSpacing.lg),
-
-          // // ─────────────────────────────────────────────────────────────
-          // // PROGRESS SECTION
-          // // ─────────────────────────────────────────────────────────────
-          // Row(
-          //   children: [
-          //     Text(
-          //       'Prayer time progress',
-          //       style: theme.textTheme.labelSmall?.copyWith(
-          //         color: colorScheme.onSurfaceVariant,
-          //         fontWeight: FontWeight.w500,
-          //       ),
-          //     ),
-          //     const Spacer(),
-          //     Text(
-          //       '${(progress * 100).round()}%',
-          //       style: theme.textTheme.labelSmall?.copyWith(
-          //         color: colorScheme.primary,
-          //         fontWeight: FontWeight.w700,
-          //       ),
-          //     ),
-          //   ],
-          // ),
-
-          // const SizedBox(height: AppSpacing.xs),
-
-          // ClipRRect(
-          //   borderRadius: BorderRadius.circular(AppRadius.full),
-          //   child: LinearProgressIndicator(
-          //     value: progress.clamp(0.0, 1.0),
-          //     minHeight: 5,
-          //     backgroundColor: colorScheme.surfaceContainerHighest,
-          //     valueColor: AlwaysStoppedAnimation<Color>(
-          //       colorScheme.primary,
-          //     ),
-          //   ),
-          // ),
         ],
       ),
     );
@@ -310,7 +212,7 @@ class NextPrayerCard extends StatelessWidget {
     final start = currentPrayer.time as DateTime;
     final end = nextPrayer.time as DateTime;
 
-    var total = end.difference(start).inSeconds;
+    final total = end.difference(start).inSeconds;
     var elapsed = now.difference(start).inSeconds;
 
     if (total <= 0) {
@@ -320,105 +222,6 @@ class NextPrayerCard extends StatelessWidget {
     elapsed = elapsed.clamp(0, total);
 
     return elapsed / total;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// CURRENT PRAYER BANNER
-// ═══════════════════════════════════════════════════════════════════════════
-
-class _CurrentPrayerBanner extends StatelessWidget {
-  const _CurrentPrayerBanner({
-    required this.prayerName,
-    required this.endTime,
-    required this.formatTime,
-  });
-
-  final String prayerName;
-  final DateTime? endTime;
-  final String Function(DateTime) formatTime;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm + 2,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.prayedColor.withOpacity(0.13),
-            AppColors.prayedColor.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: AppColors.prayedColor.withOpacity(0.12),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: AppColors.prayedColor.withOpacity(0.14),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.play_arrow_rounded,
-              size: 17,
-              color: AppColors.prayedColor,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Currently',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                Text(
-                  prayerName,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: AppColors.prayedColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (endTime != null)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  'Ends at',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                Text(
-                  formatTime(endTime!),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: AppColors.prayedColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
   }
 }
 
@@ -443,13 +246,13 @@ class _CountdownCircle extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return SizedBox(
-      width: 108,
-      height: 108,
+      width: 96,
+      height: 96,
       child: Stack(
         alignment: Alignment.center,
         children: [
           CustomPaint(
-            size: const Size(108, 108),
+            size: const Size(96, 96),
             painter: _CountdownPainter(
               progress: progress,
               trackColor: colorScheme.surfaceContainerHighest,
@@ -457,8 +260,8 @@ class _CountdownCircle extends StatelessWidget {
             ),
           ),
           Container(
-            width: 86,
-            height: 86,
+            width: 78,
+            height: 88,
             decoration: BoxDecoration(
               color: colorScheme.surface,
               shape: BoxShape.circle,
@@ -467,23 +270,26 @@ class _CountdownCircle extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'IN',
+                  'NEXT IN',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 1),
                 FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(
-                    formattedDuration,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                      color: colorScheme.primary,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: Text(
+                      formattedDuration,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        color: colorScheme.primary,
+                      ),
                     ),
                   ),
                 ),
@@ -513,38 +319,27 @@ class _CountdownPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(
-      size.width / 2,
-      size.height / 2,
-    );
-
-    final radius = size.width / 2 - 5;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 4;
 
     final trackPaint = Paint()
       ..color = trackColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
+      ..strokeWidth = 4
       ..strokeCap = StrokeCap.round;
 
     final progressPaint = Paint()
       ..color = progressColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
+      ..strokeWidth = 4
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawCircle(
-      center,
-      radius,
-      trackPaint,
-    );
+    canvas.drawCircle(center, radius, trackPaint);
 
     final sweepAngle = 2 * math.pi * progress.clamp(0.0, 1.0);
 
     canvas.drawArc(
-      Rect.fromCircle(
-        center: center,
-        radius: radius,
-      ),
+      Rect.fromCircle(center: center, radius: radius),
       -math.pi / 2,
       sweepAngle,
       false,
@@ -610,7 +405,7 @@ class _LoadingContent extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return SizedBox(
-      height: 220,
+      height: 120,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

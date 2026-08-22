@@ -32,35 +32,9 @@ class QadaPage extends StatelessWidget {
           ),
         ],
       ),
-      body: !auth.isAuthenticated
-          ? _buildNotSignedIn(context)
-          : qada.isLoading
-              ? const Center(child: AppLoadingIndicator(size: 48))
-              : _buildBody(context, qada, auth),
-    );
-  }
-
-  Widget _buildNotSignedIn(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.lock_outline_rounded,
-                size: 64, color: colorScheme.onSurfaceVariant.withOpacity(0.4)),
-            const SizedBox(height: AppSpacing.md),
-            Text('Sign in to track Qada',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.lg),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pushNamed(AppRoutes.login),
-              child: const Text('Sign In'),
-            ),
-          ],
-        ),
-      ),
+      body: qada.isLoading
+          ? const Center(child: AppLoadingIndicator(size: 48))
+          : _buildBody(context, qada, auth),
     );
   }
 
@@ -69,8 +43,6 @@ class QadaPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        // How it works
-        _HowItWorksCard(),
         const SizedBox(height: AppSpacing.md),
 
         // Summary header
@@ -127,6 +99,8 @@ class QadaPage extends StatelessWidget {
         // Disclaimer
         _Disclaimer(),
         const SizedBox(height: AppSpacing.xl),
+        // How it works
+        _HowItWorksCard(),
       ],
     );
   }
@@ -587,11 +561,12 @@ class _AddQadaSheetState extends State<_AddQadaSheet> {
               children: PrayerTypeExtension.obligatory.map((type) {
                 final isSelected = type == _selectedType;
                 return ChoiceChip(
-                  label: Text(type.displayName, style: TextStyle(
-                    color: isSelected
-                        ? colorScheme.onPrimaryContainer
-                        : colorScheme.onSurfaceVariant,
-                  )),
+                  label: Text(type.displayName,
+                      style: TextStyle(
+                        color: isSelected
+                            ? colorScheme.onPrimaryContainer
+                            : colorScheme.onSurfaceVariant,
+                      )),
                   selected: isSelected,
                   onSelected: (_) => setState(() => _selectedType = type),
                   selectedColor: colorScheme.primaryContainer,

@@ -150,7 +150,7 @@ class _StatisticsContent extends StatelessWidget {
                         child: _StatTile(
                       label: 'Qada',
                       value: stats.totalQadaPrayed.toString(),
-                      icon: Icons.replay_circle_filled_rounded,
+                      icon: Icons.person_outlined,
                       iconColor: AppColors.qadaCompletedColor,
                     )),
                     Expanded(
@@ -177,31 +177,49 @@ class _StatisticsContent extends StatelessWidget {
                 const SizedBox(height: AppSpacing.sm),
 
                 // Legend for the bar
-                const Column(
+                Column(
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         _BarLegend(
-                            color: AppColors.prayedColor, label: 'Jammah'),
+                            color: AppColors.prayedColor,
+                            label: 'Jammah',
+                            obt: stats.totalPrayed,
+                            total: stats.totalPossible),
                         SizedBox(width: AppSpacing.sm),
                         _BarLegend(
-                            color: AppColors.prayedLateColor, label: 'On Time'),
+                            color: AppColors.prayedLateColor,
+                            label: 'On Time',
+                            obt: stats.totalLatePrayed,
+                            total: stats.totalPossible),
                         SizedBox(width: AppSpacing.sm),
                         _BarLegend(
-                            color: AppColors.qadaCompletedColor, label: 'Qada'),
+                          color: AppColors.qadaCompletedColor,
+                          label: 'Qada',
+                          obt: stats.totalQadaPrayed,
+                          total: stats.totalPossible,
+                        ),
                         SizedBox(width: AppSpacing.sm),
                       ],
+                    ),
+                    SizedBox(
+                      height: 5,
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         _BarLegend(
-                            color: AppColors.missedColor, label: 'Missed'),
+                            color: AppColors.missedColor,
+                            label: 'Missed',
+                            obt: stats.totalMissed,
+                            total: stats.totalPossible),
                         SizedBox(width: AppSpacing.sm),
                         _BarLegend(
                             color: AppColors.notRecordedColor,
-                            label: 'No Record'),
+                            label: 'No Record',
+                            obt: stats.totalNotRecorded,
+                            total: stats.totalPossible),
                       ],
                     )
                   ],
@@ -536,25 +554,52 @@ class _PrayerSegmentedBar extends StatelessWidget {
 }
 
 class _BarLegend extends StatelessWidget {
-  const _BarLegend({required this.color, required this.label});
+  const _BarLegend(
+      {required this.total,
+      required this.obt,
+      required this.color,
+      required this.label});
 
   final Color color;
   final String label;
+  final int obt;
+  final int total;
+  String get pct => ((obt / total) * 100).toInt().toString();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 3),
-        Text(label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant)),
-      ],
+    return Container(
+      padding: const EdgeInsets.only(right: AppSpacing.sm),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(
+          color: color,
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 25,
+            height: 15,
+            decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(AppRadius.sm)),
+            child: Center(
+              child: Text('$pct%',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      fontSize: 8,
+                      color: AppColors.cardLight,
+                      fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(width: 3),
+          Text(label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ],
+      ),
     );
   }
 }

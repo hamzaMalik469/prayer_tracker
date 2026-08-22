@@ -251,7 +251,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             label: 'Statistics',
           ),
           NavigationDestination(
-            icon: Icon(Icons.replay_outlined),
+            icon: QadaTabIcon(),
             selectedIcon: Icon(Icons.replay_rounded),
             label: 'Qada',
           ),
@@ -286,6 +286,57 @@ class _DashboardTab extends StatelessWidget {
           sliver: SliverToBoxAdapter(child: PrayerCardList()),
         ),
         SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
+      ],
+    );
+  }
+}
+
+class QadaTabIcon extends StatelessWidget {
+  const QadaTabIcon({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final qada = context.watch<QadaProvider>();
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final pendingQada = qada.summary.totalPending;
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        const Icon(Icons.replay_outlined),
+        if (pendingQada > 0)
+          Positioned(
+            top: -5,
+            right: -5,
+            child: Container(
+              constraints: const BoxConstraints(
+                minWidth: 18,
+                minHeight: 18,
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 4,
+              ),
+              decoration: BoxDecoration(
+                color: colorScheme.error,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: colorScheme.surface,
+                  width: 2,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  pendingQada > 99 ? '99+' : pendingQada.toString(),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onError,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

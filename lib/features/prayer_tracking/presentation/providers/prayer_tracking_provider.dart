@@ -12,6 +12,8 @@ import '../../domain/usecases/get_daily_summary.dart';
 import '../../domain/usecases/record_prayer.dart';
 import '../../domain/usecases/watch_daily_summary.dart';
 
+typedef PrayerRecordChangeCallback = void Function();
+
 final class PrayerTrackingProvider extends ChangeNotifier {
   PrayerTrackingProvider({
     required GetDailySummary getDailySummary,
@@ -30,14 +32,14 @@ final class PrayerTrackingProvider extends ChangeNotifier {
   DailyPrayerSummaryEntity? _todaySummary;
   DateTime _currentDate = DateTime.now();
   bool _isLoading = false;
-  bool _isRecording = false;
   String? _errorMessage;
 
   final Set<PrayerType> _recordingPrayers = {};
+  final List<PrayerRecordChangeCallback> _changeListeners = [];
 
   DailyPrayerSummaryEntity? get todaySummary => _todaySummary;
   bool get isLoading => _isLoading;
-  bool get isRecording => _isRecording;
+  bool get isRecording => _recordingPrayers.isNotEmpty;
   String? get errorMessage => _errorMessage;
 
   bool isRecordingPrayer(PrayerType type) => _recordingPrayers.contains(type);
@@ -49,6 +51,25 @@ final class PrayerTrackingProvider extends ChangeNotifier {
   int get missedCount => _todaySummary?.missedCount ?? 0;
   bool get isFullyCompleted => _todaySummary?.isFullyCompleted ?? false;
   double get completionPercentage => _todaySummary?.completionPercentage ?? 0;
+
+  void addChangeListener(PrayerRecordChangeCallback callback) {
+    _changeListeners.add(callback);
+  }
+
+  void removeChangeListener(PrayerRecordChangeCallback callback) {
+    _changeListeners.remove(callback);
+  }
+
+  void _notifyChangeListeners() {
+    for (final callback
+        in List<PrayerRecordChangeCallback>.from(_changeListeners)) {
+      try {
+        callback();
+      } catch (e) {
+        AppLogger.warning('Error in prayer record change listener', error: e);
+      }
+    }
+  }
 
   Future<void> initialise({required String userId}) async {
     _currentDate = DateTime.now();
@@ -64,7 +85,11 @@ final class PrayerTrackingProvider extends ChangeNotifier {
 
       _subscribeToSummary(userId: userId);
     } catch (e) {
-      AppLogger.error('Failed to load today summary', error: e, tag: 'PrayerTrackingProvider');
+      AppLogger.error(
+        'Failed to load today summary',
+        error: e,
+        tag: 'PrayerTrackingProvider',
+      );
       _isLoading = false;
       _errorMessage = "Could not load today's prayers.";
       notifyListeners();
@@ -90,10 +115,18 @@ final class PrayerTrackingProvider extends ChangeNotifier {
         ),
       );
       _recordingPrayers.remove(prayerType);
+
+      await _refreshSummary(userId: userId);
+
+      _notifyChangeListeners();
       notifyListeners();
       return true;
     } catch (e) {
-      AppLogger.error('Failed to record prayer', error: e, tag: 'PrayerTrackingProvider');
+      AppLogger.error(
+        'Failed to record prayer',
+        error: e,
+        tag: 'PrayerTrackingProvider',
+      );
       _recordingPrayers.remove(prayerType);
       _errorMessage = 'Could not save prayer. Please try again.';
       notifyListeners();
@@ -106,9 +139,8 @@ final class PrayerTrackingProvider extends ChangeNotifier {
     required PrayerType prayerType,
   }) async {
     final current = statusFor(prayerType);
-    final newStatus = current.isCompleted
-        ? PrayerStatus.notRecorded
-        : PrayerStatus.prayed;
+    final newStatus =
+        current.isCompleted ? PrayerStatus.notRecorded : PrayerStatus.prayed;
 
     return recordPrayer(
       userId: userId,
@@ -134,6 +166,20 @@ final class PrayerTrackingProvider extends ChangeNotifier {
     await initialise(userId: userId);
   }
 
+  Future<void> _refreshSummary({required String userId}) async {
+    try {
+      _todaySummary = await _getDailySummary(
+        GetDailySummaryParams(userId: userId, date: _currentDate),
+      );
+    } catch (e) {
+      AppLogger.warning(
+        'Summary refresh failed',
+        error: e,
+        tag: 'PrayerTrackingProvider',
+      );
+    }
+  }
+
   void _subscribeToSummary({required String userId}) {
     _summarySubscription?.cancel();
     _summarySubscription = _watchDailySummary(
@@ -144,7 +190,11 @@ final class PrayerTrackingProvider extends ChangeNotifier {
         notifyListeners();
       },
       onError: (Object e) {
-        AppLogger.warning('Daily summary stream error', error: e, tag: 'PrayerTrackingProvider');
+        AppLogger.warning(
+          'Daily summary stream error',
+          error: e,
+          tag: 'PrayerTrackingProvider',
+        );
       },
     );
   }
@@ -157,6 +207,7 @@ final class PrayerTrackingProvider extends ChangeNotifier {
   @override
   void dispose() {
     _summarySubscription?.cancel();
+    _changeListeners.clear();
     super.dispose();
   }
 }

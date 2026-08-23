@@ -77,7 +77,7 @@ class NextPrayerCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ── LEFT COLUMN: CURRENT PRAYER (ACTIVE) ─────────────────────
+              // ── LEFT COLUMN: CURRENT ACTIVE PRAYER ───────────────────────
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,37 +88,61 @@ class NextPrayerCard extends StatelessWidget {
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.2,
-                        color: AppColors.prayedColor,
+                        color: currentPrayer != null
+                            ? AppColors.prayedColor
+                            : colorScheme.onSurfaceVariant.withOpacity(0.7),
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       currentPrayer != null
                           ? currentPrayer.prayerType.displayName
-                          : 'Sunrise',
+                          : 'Interval',
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5,
+                        color: currentPrayer != null
+                            ? colorScheme.onSurface
+                            : colorScheme.onSurfaceVariant.withOpacity(0.6),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      currentPrayer != null
-                          ? _formatTime(currentPrayer.time)
-                          : _formatTime(todayTimes.sunrise.time),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                    if (currentPrayer != null &&
-                        currentPrayer.endTime != null) ...[
-                      const SizedBox(height: 2),
+                    if (currentPrayer != null) ...[
                       Text(
-                        'Ends ${_formatTime(currentPrayer.endTime!)}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                        _formatTime(currentPrayer.time),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
                         ),
+                      ),
+                      if (currentPrayer.endTime != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Ends ${_formatTime(currentPrayer.endTime!)}',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ] else ...[
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.coffee_outlined,
+                            size: 14,
+                            color:
+                                colorScheme.onSurfaceVariant.withOpacity(0.5),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'No active ṣalāh',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color:
+                                  colorScheme.onSurfaceVariant.withOpacity(0.5),
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ],
@@ -226,7 +250,7 @@ class NextPrayerCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// COUNTDOWN CIRCLE
+// COUNTDOWN CIRCLE — No changes
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _CountdownCircle extends StatelessWidget {
@@ -302,10 +326,6 @@ class _CountdownCircle extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// COUNTDOWN PAINTER
-// ═══════════════════════════════════════════════════════════════════════════
-
 class _CountdownPainter extends CustomPainter {
   const _CountdownPainter({
     required this.progress,
@@ -355,10 +375,6 @@ class _CountdownPainter extends CustomPainter {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// CARD SHELL
-// ═══════════════════════════════════════════════════════════════════════════
-
 class _CardShell extends StatelessWidget {
   const _CardShell({
     required this.child,
@@ -392,10 +408,6 @@ class _CardShell extends StatelessWidget {
     );
   }
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LOADING
-// ═══════════════════════════════════════════════════════════════════════════
 
 class _LoadingContent extends StatelessWidget {
   const _LoadingContent();

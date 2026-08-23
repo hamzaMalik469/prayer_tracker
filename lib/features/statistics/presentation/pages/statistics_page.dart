@@ -681,10 +681,7 @@ class _StreakStatItem extends StatelessWidget {
                   .textTheme
                   .headlineMedium
                   ?.copyWith(fontWeight: FontWeight.w700)),
-          Text(value == 1 ? '1 day' : '$value days',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 2),
+          
           Text(label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,

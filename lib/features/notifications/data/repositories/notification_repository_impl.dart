@@ -30,12 +30,17 @@ final class NotificationRepositoryImpl implements NotificationRepository {
   Future<void> scheduleNotifications({
     required DailyPrayerTimesEntity prayerTimes,
     required NotificationSettingsEntity settings,
+    List<String> unrecordedPrayersToday = const [],
+    int currentStreak = 0,
+    bool todayCompleted = false,
   }) async {
-    // Build notifications for this day's prayers.
     final notifications = PrayerNotificationBuilder.build(
       prayers: prayerTimes.all,
       settings: settings,
       masterEnabled: settings.masterEnabled,
+      unrecordedPrayersToday: unrecordedPrayersToday,
+      currentStreak: currentStreak,
+      todayCompleted: todayCompleted,
     );
 
     await _notificationDS.schedulePrayerNotifications(

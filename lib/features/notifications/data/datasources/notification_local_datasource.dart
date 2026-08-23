@@ -1,7 +1,3 @@
-/// flutter_local_notifications data source.
-///
-/// All flutter_local_notifications imports are isolated here.
-/// The Domain layer never imports this package directly.
 library;
 
 import 'dart:io';
@@ -59,7 +55,6 @@ final class NotificationLocalDataSourceImpl
     if (_initialised) return true;
 
     try {
-      // Initialise timezone database.
       tz.initializeTimeZones();
       _setLocalTimezone();
 
@@ -149,9 +144,6 @@ final class NotificationLocalDataSourceImpl
       }
 
       if (Platform.isIOS) {
-        // iOS: check via pending notifications as a proxy.
-        // Full permission status requires permission_handler package.
-        // For now return true if initialised — real check in Phase 7.
         return _initialised;
       }
 
@@ -176,12 +168,7 @@ final class NotificationLocalDataSourceImpl
       final scheduledTz =
           tz.TZDateTime.from(notification.scheduledTime, tz.local);
 
-      // Skip if the scheduled time is in the past.
       if (scheduledTz.isBefore(tz.TZDateTime.now(tz.local))) {
-        AppLogger.debug(
-          'Skipping past notification: ${notification.title}',
-          tag: 'NotificationDS',
-        );
         continue;
       }
 
@@ -216,12 +203,12 @@ final class NotificationLocalDataSourceImpl
         );
 
         AppLogger.debug(
-          'Scheduled: ${notification.title} at ${notification.scheduledTime}',
+          'Scheduled ID: ${notification.id} — ${notification.title} at ${notification.scheduledTime}',
           tag: 'NotificationDS',
         );
       } catch (e) {
         AppLogger.error(
-          'Failed to schedule: ${notification.title}',
+          'Failed to schedule ID ${notification.id}: ${notification.title}',
           error: e,
           tag: 'NotificationDS',
         );
@@ -272,16 +259,9 @@ final class NotificationLocalDataSourceImpl
 
   void _setLocalTimezone() {
     try {
-      // Use the device's local timezone offset to find the matching
-      // timezone name. This is a reliable approach without needing
-      // flutter_native_timezone on all platforms.
       final now = DateTime.now();
       final offset = now.timeZoneOffset;
-      final offsetHours = offset.inHours;
-      final offsetMinutes = offset.inMinutes.remainder(60).abs();
 
-      // Find a timezone that matches the current UTC offset.
-      // Falls back to UTC if no match found.
       String? matchedZone;
       for (final zoneName in tz.timeZoneDatabase.locations.keys) {
         final location = tz.getLocation(zoneName);
@@ -297,12 +277,6 @@ final class NotificationLocalDataSourceImpl
       tz.setLocalLocation(
         tz.getLocation(matchedZone ?? 'UTC'),
       );
-
-      AppLogger.info(
-        'Timezone set to: ${matchedZone ?? 'UTC'} '
-        '(offset: $offsetHours:${offsetMinutes.toString().padLeft(2, '0')})',
-        tag: 'NotificationDS',
-      );
     } catch (e) {
       AppLogger.warning(
         'Failed to set local timezone, using UTC',
@@ -314,15 +288,21 @@ final class NotificationLocalDataSourceImpl
   }
 }
 
-/// Public builder used by the repository to construct scheduled notifications.
+// ═══════════════════════════════════════════════════════════════════════════
+// PRAYER NOTIFICATION BUILDER (WITH DYNAMIC REMINDERS)
+// ═══════════════════════════════════════════════════════════════════════════
+
 final class PrayerNotificationBuilder {
   PrayerNotificationBuilder._();
 
-  /// Builds a list of [_ScheduledNotification] from prayer times and settings.
+  /// Builds scheduled notifications including dynamic tracker & streak protectors.
   static List<_ScheduledNotification> build({
     required List<PrayerTimeEntity> prayers,
     required NotificationSettingsEntity settings,
     required bool masterEnabled,
+    List<String> unrecordedPrayersToday = const [],
+    int currentStreak = 0,
+    bool todayCompleted = false,
   }) {
     if (!masterEnabled) return [];
 
@@ -334,37 +314,32 @@ final class PrayerNotificationBuilder {
       final config = settings.configFor(prayer.prayerType);
       if (!config.enabled) continue;
 
-      // ── 1. Astronomical Start Time Reminder ─────────────────────────────
+      // ── 1. Astronomical Start Time ──────────────────────────────────────
       final startNotificationId = _buildId(
         date: prayer.date,
         prayerType: prayer.prayerType,
-        idTypeOffset: 0, // offset 0 for start times
+        idTypeOffset: 0,
       );
-
-      final notificationTime =
-          prayer.time.subtract(Duration(minutes: config.minutesBefore));
 
       notifications.add(
         _ScheduledNotification(
           id: startNotificationId,
           title: _title(prayer.prayerType),
           body: _body(prayer.prayerType, minutesBefore: config.minutesBefore),
-          scheduledTime: notificationTime,
+          scheduledTime:
+              prayer.time.subtract(Duration(minutes: config.minutesBefore)),
           soundEnabled: config.soundEnabled,
           vibrationEnabled: config.vibrationEnabled,
         ),
       );
 
-      // ── 2. Mosque Jama'ah Jama\'ah Reminder ────────────────────────
+      // ── 2. Mosque Jama'ah Congregation ──────────────────────────────────
       if (prayer.hasJamaah && config.jamaahEnabled) {
         final jamaahNotificationId = _buildId(
           date: prayer.date,
           prayerType: prayer.prayerType,
-          idTypeOffset: 200, // offset 200 for Jama'ah times
+          idTypeOffset: 200,
         );
-
-        final jamaahNotificationTime = prayer.jamaahTime!
-            .subtract(Duration(minutes: config.minutesBeforeJamaah));
 
         notifications.add(
           _ScheduledNotification(
@@ -372,19 +347,20 @@ final class PrayerNotificationBuilder {
             title: '${prayer.prayerType.displayName} Jama\'ah Reminder',
             body:
                 'Jama\'ah begins in ${config.minutesBeforeJamaah} minutes at mosque.',
-            scheduledTime: jamaahNotificationTime,
+            scheduledTime: prayer.jamaahTime!
+                .subtract(Duration(minutes: config.minutesBeforeJamaah)),
             soundEnabled: config.soundEnabled,
             vibrationEnabled: config.vibrationEnabled,
           ),
         );
       }
 
-      // ── 3. Post-Prayer Follow-up Reminder (Premium) ─────────────────────
+      // ── 3. Post-Prayer Follow-up (Premium) ──────────────────────────────
       if (config.minutesAfter != null && config.minutesAfter! > 0) {
         final postId = _buildId(
           date: prayer.date,
           prayerType: prayer.prayerType,
-          idTypeOffset: 500, // offset 500 for post-prayers
+          idTypeOffset: 500,
         );
 
         notifications.add(
@@ -399,6 +375,77 @@ final class PrayerNotificationBuilder {
           ),
         );
       }
+    }
+
+    // Only build trackers and savers for TODAY's date
+    final today = DateTime.now();
+    final todayPrayers = prayers
+        .where((p) =>
+            p.date.year == today.year &&
+            p.date.month == today.month &&
+            p.date.day == today.day)
+        .toList();
+
+    if (todayPrayers.isNotEmpty && !todayCompleted) {
+      final ishaPrayer =
+          todayPrayers.firstWhere((p) => p.prayerType == PrayerType.isha);
+      final trackerConfig = settings
+          .configFor(PrayerType.isha); // Use Isha configuration as master
+
+      // ── 4. POST-ISHA JAMAAH TRACKING ALARM (Isha + 2 hours) ──────────────
+      if (unrecordedPrayersToday.isNotEmpty) {
+        final trackerNotificationId = _buildId(
+          date: today,
+          prayerType: PrayerType.isha,
+          idTypeOffset: 1000, // ID Type 1000 for tracking check
+        );
+
+        // Fallback to Isha start time + 2 hours if Jama'ah isn't set
+        final baseTrackerTime =
+            ishaPrayer.hasJamaah ? ishaPrayer.jamaahTime! : ishaPrayer.time;
+        final scheduledTrackerTime =
+            baseTrackerTime.add(const Duration(hours: 2));
+
+        final missingList = unrecordedPrayersToday.join(', ');
+
+        notifications.add(
+          _ScheduledNotification(
+            id: trackerNotificationId,
+            title: 'Unrecorded Prayers Today',
+            body: 'Your tracker is missing: $missingList. Tap to log them!',
+            scheduledTime: scheduledTrackerTime,
+            soundEnabled: trackerConfig.soundEnabled,
+            vibrationEnabled: trackerConfig.vibrationEnabled,
+          ),
+        );
+      }
+
+      // ── 5. PRE-MIDNIGHT STREAK PROTECTOR (11:00 PM) ────────────────────────
+      final streakNotificationId = _buildId(
+        date: today,
+        prayerType: PrayerType.isha,
+        idTypeOffset: 2000, // ID Type 2000 for streak saver
+      );
+
+      final scheduledStreakTime =
+          DateTime(today.year, today.month, today.day, 23, 0); // 11:00 PM
+
+      final String streakBody = currentStreak > 0
+          ? 'Save your current streak of $currentStreak days! Log today\'s prayers before midnight.'
+          : 'Complete your prayers today to start a new tracking streak!';
+
+      notifications.add(
+        _ScheduledNotification(
+          id: streakNotificationId,
+          title: currentStreak > 0
+              ? 'Protect Your Streak! 🔥'
+              : 'Start Your Streak! 🌱',
+          body: streakBody,
+          scheduledTime: scheduledStreakTime,
+          soundEnabled: trackerConfig.soundEnabled,
+          vibrationEnabled: trackerConfig.vibrationEnabled,
+        ),
+      );
     }
 
     return notifications;

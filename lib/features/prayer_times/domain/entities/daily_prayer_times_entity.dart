@@ -47,10 +47,28 @@ final class DailyPrayerTimesEntity extends Equatable {
     return null;
   }
 
+  /// Determines the currently active prayer window with complete boundary safety.
+  /// Handles the midnight-to-Fajr gap (recovers yesterday's Isha).
   PrayerTimeEntity? currentPrayer(DateTime now) {
-    for (final prayer in obligatory.reversed) {
-      if (prayer.isActive(now)) return prayer;
+    // Boundary 1: If we are before today's Fajr, yesterday's Isha is still active
+    // until today's Fajr start time.
+    if (now.isBefore(fajr.time)) {
+      return isha.copyWith(
+        time: date
+            .subtract(const Duration(days: 1))
+            .copyWith(hour: isha.time.hour, minute: isha.time.minute),
+        endTime: fajr.time,
+      );
     }
+
+    // Boundary 2: Check each obligatory prayer window sequentially
+    for (final prayer in obligatory.reversed) {
+      if (prayer.isActive(now)) {
+        return prayer;
+      }
+    }
+
+    // Boundary 3: If between Sunrise and Dhuhr, or any other gap, no obligatory prayer is active
     return null;
   }
 
@@ -107,7 +125,6 @@ final class DailyPrayerTimesEntity extends Equatable {
     );
   }
 
-  /// Alias for repository usage
   DailyPrayerTimesEntity withEndAndJamaahTimes({
     DateTime? nextDayFajr,
     Map<String, String>? rawJamaahMap,
@@ -129,4 +146,16 @@ final class DailyPrayerTimesEntity extends Equatable {
         latitude,
         longitude,
       ];
+}
+
+extension on DateTime {
+  DateTime copyWith({int? hour, int? minute}) {
+    return DateTime(
+      year,
+      month,
+      day,
+      hour ?? this.hour,
+      minute ?? this.minute,
+    );
+  }
 }

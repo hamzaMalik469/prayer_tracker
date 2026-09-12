@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:prayers_tracker_plus/core/helpers/demo_data_generator.dart';
 import 'package:prayers_tracker_plus/core/theme/app_colors.dart';
+import 'package:prayers_tracker_plus/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:prayers_tracker_plus/features/prayer_tracking/presentation/providers/prayer_tracking_provider.dart';
 import 'package:prayers_tracker_plus/features/qada/presentation/providers/qada_provider.dart';
 import 'package:prayers_tracker_plus/features/settings/presentation/pages/backup_page.dart';
@@ -144,6 +145,7 @@ class _SettingsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final NotitificationProvider = context.watch<NotificationProvider>();
     final auth = context.watch<AuthProvider>();
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -449,7 +451,7 @@ class _SettingsBody extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.full),
                 ),
                 child: Text(
-                  settings.notificationsEnabled ? 'ON' : 'OFF',
+                  NotitificationProvider.masterEnabled ? 'ON' : 'OFF',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: settings.notificationsEnabled
                             ? AppColors.prayedColor

@@ -8,6 +8,7 @@ final class PrayerNotificationConfig extends Equatable {
   const PrayerNotificationConfig({
     required this.prayerType,
     required this.enabled,
+    required this.adhanEnabled,
     required this.minutesBefore,
     this.minutesAfter,
     required this.soundEnabled,
@@ -19,33 +20,40 @@ final class PrayerNotificationConfig extends Equatable {
   const PrayerNotificationConfig.defaultFor(PrayerType type)
       : prayerType = type,
         enabled = true,
+        adhanEnabled = true,
         minutesBefore = 0,
         minutesAfter = null,
         soundEnabled = true,
         vibrationEnabled = true,
         jamaahEnabled = true,
-        minutesBeforeJamaah = 5; // 5 minutes before Jama'ah by default
+        minutesBeforeJamaah = 5;
 
   final PrayerType prayerType;
+
+  /// Master toggle for this prayer's notifications.
   final bool enabled;
 
-  /// Minutes before prayer astronomical start time to send reminder.
+  /// Toggle for the astronomical Adhan start-time reminder.
+  final bool adhanEnabled;
+
+  /// Minutes before Adhan start time.
   final int minutesBefore;
 
-  /// Minutes after prayer time to send a follow-up reminder (Premium).
+  /// Minutes after prayer time (Premium).
   final int? minutesAfter;
 
   final bool soundEnabled;
   final bool vibrationEnabled;
 
-  /// Whether to send a reminder before the local mosque's Jama'ah time.
+  /// Toggle for the mosque Jama'ah congregation reminder.
   final bool jamaahEnabled;
 
-  /// Minutes before the Jama'ah time to send the reminder.
+  /// Minutes before Jama'ah time.
   final int minutesBeforeJamaah;
 
   PrayerNotificationConfig copyWith({
     bool? enabled,
+    bool? adhanEnabled,
     int? minutesBefore,
     int? minutesAfter,
     bool? soundEnabled,
@@ -54,13 +62,14 @@ final class PrayerNotificationConfig extends Equatable {
     int? minutesBeforeJamaah,
   }) {
     return PrayerNotificationConfig(
-      prayerType: prayerType,
-      enabled: enabled ?? this.enabled,
-      minutesBefore: minutesBefore ?? this.minutesBefore,
-      minutesAfter: minutesAfter ?? this.minutesAfter,
-      soundEnabled: soundEnabled ?? this.soundEnabled,
-      vibrationEnabled: vibrationEnabled ?? this.vibrationEnabled,
-      jamaahEnabled: jamaahEnabled ?? this.jamaahEnabled,
+      prayerType:          prayerType,
+      enabled:             enabled             ?? this.enabled,
+      adhanEnabled:        adhanEnabled        ?? this.adhanEnabled,
+      minutesBefore:       minutesBefore       ?? this.minutesBefore,
+      minutesAfter:        minutesAfter        ?? this.minutesAfter,
+      soundEnabled:        soundEnabled        ?? this.soundEnabled,
+      vibrationEnabled:    vibrationEnabled    ?? this.vibrationEnabled,
+      jamaahEnabled:       jamaahEnabled       ?? this.jamaahEnabled,
       minutesBeforeJamaah: minutesBeforeJamaah ?? this.minutesBeforeJamaah,
     );
   }
@@ -69,6 +78,7 @@ final class PrayerNotificationConfig extends Equatable {
   List<Object?> get props => [
         prayerType,
         enabled,
+        adhanEnabled,
         minutesBefore,
         minutesAfter,
         soundEnabled,

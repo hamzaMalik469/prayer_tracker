@@ -314,25 +314,26 @@ final class PrayerNotificationBuilder {
       final config = settings.configFor(prayer.prayerType);
       if (!config.enabled) continue;
 
-      // ── 1. Astronomical Start Time ──────────────────────────────────────
-      final startNotificationId = _buildId(
-        date: prayer.date,
-        prayerType: prayer.prayerType,
-        idTypeOffset: 0,
-      );
+      // ── 1. Astronomical Adhan Start Time ────────────────────────────────
+      if (config.adhanEnabled) {
+        final startNotificationId = _buildId(
+          date: prayer.date,
+          prayerType: prayer.prayerType,
+          idTypeOffset: 0,
+        );
 
-      notifications.add(
-        _ScheduledNotification(
-          id: startNotificationId,
-          title: _title(prayer.prayerType),
-          body: _body(prayer.prayerType, minutesBefore: config.minutesBefore),
-          scheduledTime:
-              prayer.time.subtract(Duration(minutes: config.minutesBefore)),
-          soundEnabled: config.soundEnabled,
-          vibrationEnabled: config.vibrationEnabled,
-        ),
-      );
-
+        notifications.add(
+          _ScheduledNotification(
+            id: startNotificationId,
+            title: _title(prayer.prayerType),
+            body: _body(prayer.prayerType, minutesBefore: config.minutesBefore),
+            scheduledTime:
+                prayer.time.subtract(Duration(minutes: config.minutesBefore)),
+            soundEnabled: config.soundEnabled,
+            vibrationEnabled: config.vibrationEnabled,
+          ),
+        );
+      }
       // ── 2. Mosque Jama'ah Congregation ──────────────────────────────────
       if (prayer.hasJamaah && config.jamaahEnabled) {
         final jamaahNotificationId = _buildId(

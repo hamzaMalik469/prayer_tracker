@@ -135,7 +135,7 @@ class NextPrayerCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'No active ṣalāh',
+                            'No active\nṣalāh',
                             style: theme.textTheme.labelSmall?.copyWith(
                               color:
                                   colorScheme.onSurfaceVariant.withOpacity(0.5),

@@ -38,7 +38,7 @@ class _NotificationContent extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       children: [
-        // ── Permission Warning Card ─────────────────────────────────────
+        // ── Permission Warning ──────────────────────────────────────────
         if (!provider.hasPermission)
           Padding(
             padding: const EdgeInsets.symmetric(
@@ -48,7 +48,7 @@ class _NotificationContent extends StatelessWidget {
             child: _PermissionCard(provider: provider),
           ),
 
-        // ── Status Overview Card ────────────────────────────────────────
+        // ── Master Status Card ──────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
@@ -128,8 +128,7 @@ class _NotificationContent extends StatelessWidget {
         ),
 
         if (provider.masterEnabled) ...[
-          // ── Per Prayer Configuration Section ──────────────────────────
-          const _SectionTitle(title: 'Per Prayer Reminders'),
+          _SectionTitle(title: 'Per Prayer Reminders'),
 
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -144,11 +143,11 @@ class _NotificationContent extends StatelessWidget {
                     config: config,
                     hasJamaah: hasJamaah,
                     onChanged: (updated) async {
-                      final timesProv = context.read<PrayerTimesProvider>();
+                      final tp = context.read<PrayerTimesProvider>();
                       await provider.updatePrayerConfig(
                         config: updated,
-                        todayTimes: timesProv.todayTimes,
-                        tomorrowTimes: timesProv.tomorrowTimes,
+                        todayTimes: tp.todayTimes,
+                        tomorrowTimes: tp.tomorrowTimes,
                       );
                     },
                   ),
@@ -158,7 +157,7 @@ class _NotificationContent extends StatelessWidget {
           ),
 
           // ── Info Card ─────────────────────────────────────────────────
-          const _SectionTitle(title: 'How it Works'),
+          _SectionTitle(title: 'How it Works'),
 
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -171,11 +170,8 @@ class _NotificationContent extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(
-                          Icons.info_outline_rounded,
-                          size: 18,
-                          color: colorScheme.primary,
-                        ),
+                        Icon(Icons.info_outline_rounded,
+                            size: 18, color: colorScheme.primary),
                         const SizedBox(width: AppSpacing.sm),
                         Text(
                           'Notification Types',
@@ -188,16 +184,17 @@ class _NotificationContent extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    const _InfoRow(
+                    _InfoRow(
                       icon: Icons.alarm_rounded,
                       title: 'Adhan Reminder',
-                      description: 'Alerts you at the prayer start time.',
+                      description:
+                          'Alerts you at the astronomical prayer start time.',
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    const _InfoRow(
+                    _InfoRow(
                       icon: Icons.people_alt_rounded,
                       title: 'Jama\'ah Reminder',
-                      description: 'Reminds you before mosque Jama\'ah. '
+                      description: 'Reminds you before mosque congregation. '
                           'Only available when Jama\'ah times are set.',
                     ),
                   ],
@@ -219,14 +216,13 @@ class _NotificationContent extends StatelessWidget {
 
 class _PermissionCard extends StatelessWidget {
   const _PermissionCard({required this.provider});
-
   final NotificationProvider provider;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     return Card(
-      color: colorScheme.errorContainer,
+      color: cs.errorContainer,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Row(
@@ -235,41 +231,34 @@ class _PermissionCard extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: colorScheme.onErrorContainer.withOpacity(0.15),
+                color: cs.onErrorContainer.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
-              child: Icon(
-                Icons.notifications_off_rounded,
-                color: colorScheme.onErrorContainer,
-                size: 24,
-              ),
+              child: Icon(Icons.notifications_off_rounded,
+                  color: cs.onErrorContainer, size: 24),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Permission Required',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: colorScheme.onErrorContainer,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  Text(
-                    'Enable in device settings to get prayer alerts.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onErrorContainer,
-                        ),
-                  ),
+                  Text('Permission Required',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: cs.onErrorContainer,
+                          fontWeight: FontWeight.w700)),
+                  Text('Enable in device settings to get prayer alerts.',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: cs.onErrorContainer)),
                 ],
               ),
             ),
             FilledButton.tonal(
               onPressed: () => provider.requestPermission(),
               style: FilledButton.styleFrom(
-                backgroundColor: colorScheme.onErrorContainer,
-                foregroundColor: colorScheme.errorContainer,
+                backgroundColor: cs.onErrorContainer,
+                foregroundColor: cs.errorContainer,
                 minimumSize: const Size(72, 36),
               ),
               child: const Text('Enable'),
@@ -282,7 +271,7 @@ class _PermissionCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PRAYER CARD — Per prayer notification configuration
+// PRAYER CARD — Per-prayer config with Adhan + Jama'ah switches
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _PrayerCard extends StatelessWidget {
@@ -307,19 +296,15 @@ class _PrayerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
 
     return Card(
       child: Column(
         children: [
-          // ── Prayer Header + Master Toggle ──────────────────────────────
+          // ── Header + Master Toggle ─────────────────────────────────────
           Padding(
-            padding: EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.md,
-              AppSpacing.md,
-              config.enabled ? AppSpacing.sm : AppSpacing.md,
-            ),
+            padding: EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md,
+                AppSpacing.md, config.enabled ? AppSpacing.sm : AppSpacing.md),
             child: Row(
               children: [
                 Container(
@@ -327,43 +312,35 @@ class _PrayerCard extends StatelessWidget {
                   height: 44,
                   decoration: BoxDecoration(
                     color: config.enabled
-                        ? colorScheme.primary.withOpacity(0.1)
-                        : colorScheme.surfaceContainerHighest,
+                        ? cs.primary.withOpacity(0.1)
+                        : cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
-                  child: Icon(
-                    _iconFor(config.prayerType),
-                    size: 22,
-                    color: config.enabled
-                        ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
-                  ),
+                  child: Icon(_iconFor(config.prayerType),
+                      size: 22,
+                      color: config.enabled ? cs.primary : cs.onSurfaceVariant),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        config.prayerType.displayName,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                      ),
-                      Text(
-                        config.prayerType.arabicName,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                      ),
+                      Text(config.prayerType.displayName,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700)),
+                      Text(config.prayerType.arabicName,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: cs.onSurfaceVariant)),
                     ],
                   ),
                 ),
                 Switch(
                   value: config.enabled,
-                  onChanged: (value) =>
-                      onChanged(config.copyWith(enabled: value)),
+                  onChanged: (v) => onChanged(config.copyWith(enabled: v)),
                 ),
               ],
             ),
@@ -373,12 +350,10 @@ class _PrayerCard extends StatelessWidget {
             const Divider(
                 height: 1, indent: AppSpacing.md, endIndent: AppSpacing.md),
 
-            // ── Adhan Reminder Section ───────────────────────────────────
+            // ── ADHAN REMINDER SECTION (with switch) ─────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.md,
-              ),
+                  horizontal: AppSpacing.md, vertical: AppSpacing.md),
               child: Column(
                 children: [
                   Row(
@@ -387,63 +362,86 @@ class _PrayerCard extends StatelessWidget {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: colorScheme.primary.withOpacity(0.1),
+                          color: config.adhanEnabled
+                              ? cs.primary.withOpacity(0.1)
+                              : cs.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
-                        child: Icon(
-                          Icons.alarm_rounded,
-                          size: 16,
-                          color: colorScheme.primary,
-                        ),
+                        child: Icon(Icons.alarm_rounded,
+                            size: 16,
+                            color: config.adhanEnabled
+                                ? cs.primary
+                                : cs.onSurfaceVariant),
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Text('Adhan Reminder',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600)),
                             Text(
-                              'Adhan Reminder',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            Text(
-                              config.minutesBefore == 0
-                                  ? 'At prayer start time'
-                                  : '${config.minutesBefore} min before',
+                              config.adhanEnabled
+                                  ? (config.minutesBefore == 0
+                                      ? 'At prayer start time'
+                                      : '${config.minutesBefore} min before')
+                                  : 'Disabled',
                               style: Theme.of(context)
                                   .textTheme
                                   .bodySmall
-                                  ?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
+                                  ?.copyWith(color: cs.onSurfaceVariant),
                             ),
                           ],
                         ),
                       ),
-                      _TimeChip(
-                        value: config.minutesBefore,
-                        onChanged: (m) =>
-                            onChanged(config.copyWith(minutesBefore: m)),
+                      Switch(
+                        value: config.adhanEnabled,
+                        onChanged: (v) =>
+                            onChanged(config.copyWith(adhanEnabled: v)),
                       ),
                     ],
                   ),
+                  if (config.adhanEnabled) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 40),
+                      child: Row(
+                        children: [
+                          Text('Remind me',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: cs.onSurfaceVariant)),
+                          const SizedBox(width: AppSpacing.sm),
+                          _TimeChip(
+                            value: config.minutesBefore,
+                            onChanged: (m) =>
+                                onChanged(config.copyWith(minutesBefore: m)),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text('before Adhan',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: cs.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
 
-            // ── Jama'ah Reminder Section ─────────────────────────────────
+            // ── JAMA'AH REMINDER SECTION (with switch) ───────────────────
             if (hasJamaah) ...[
               const Divider(
                   height: 1, indent: AppSpacing.md, endIndent: AppSpacing.md),
               Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.md,
-                ),
+                    horizontal: AppSpacing.md, vertical: AppSpacing.md),
                 child: Column(
                   children: [
                     Row(
@@ -454,49 +452,41 @@ class _PrayerCard extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: config.jamaahEnabled
                                 ? AppColors.qadaCompletedColor.withOpacity(0.15)
-                                : colorScheme.surfaceContainerHighest,
+                                : cs.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(AppRadius.sm),
                           ),
-                          child: Icon(
-                            Icons.people_alt_rounded,
-                            size: 16,
-                            color: config.jamaahEnabled
-                                ? AppColors.qadaCompletedColor
-                                : colorScheme.onSurfaceVariant,
-                          ),
+                          child: Icon(Icons.people_alt_rounded,
+                              size: 16,
+                              color: config.jamaahEnabled
+                                  ? AppColors.qadaCompletedColor
+                                  : cs.onSurfaceVariant),
                         ),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Jama\'ah Reminder',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
+                              Text('Jama\'ah Reminder',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600)),
                               Text(
                                 config.jamaahEnabled
-                                    ? '${config.minutesBeforeJamaah} min before Jama\'ah'
+                                    ? '${config.minutesBeforeJamaah} min before congregation'
                                     : 'Disabled',
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
-                                    ?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
+                                    ?.copyWith(color: cs.onSurfaceVariant),
                               ),
                             ],
                           ),
                         ),
                         Switch(
                           value: config.jamaahEnabled,
-                          onChanged: (value) =>
-                              onChanged(config.copyWith(jamaahEnabled: value)),
+                          onChanged: (v) =>
+                              onChanged(config.copyWith(jamaahEnabled: v)),
                         ),
                       ],
                     ),
@@ -506,15 +496,11 @@ class _PrayerCard extends StatelessWidget {
                         padding: const EdgeInsets.only(left: 40),
                         child: Row(
                           children: [
-                            Text(
-                              'Remind me',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
+                            Text('Remind me',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: cs.onSurfaceVariant)),
                             const SizedBox(width: AppSpacing.sm),
                             _TimeChip(
                               value: config.minutesBeforeJamaah,
@@ -522,15 +508,11 @@ class _PrayerCard extends StatelessWidget {
                                   config.copyWith(minutesBeforeJamaah: m)),
                             ),
                             const SizedBox(width: AppSpacing.sm),
-                            Text(
-                              'before',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
+                            Text('before Jama\'ah',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: cs.onSurfaceVariant)),
                           ],
                         ),
                       ),
@@ -539,27 +521,23 @@ class _PrayerCard extends StatelessWidget {
                 ),
               ),
             ] else ...[
-              // Tip when no Jama'ah is configured
               Container(
                 margin: const EdgeInsets.all(AppSpacing.md),
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
+                  color: cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.lightbulb_outline_rounded,
-                      size: 14,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                    Icon(Icons.lightbulb_outline_rounded,
+                        size: 14, color: cs.onSurfaceVariant),
                     const SizedBox(width: AppSpacing.xs),
                     Expanded(
                       child: Text(
                         'Set Jama\'ah times in Settings to enable mosque reminders.',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
+                              color: cs.onSurfaceVariant,
                               fontStyle: FontStyle.italic,
                             ),
                       ),
@@ -576,14 +554,11 @@ class _PrayerCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TIME CHIP — Dropdown-style time picker
+// TIME CHIP
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _TimeChip extends StatelessWidget {
-  const _TimeChip({
-    required this.value,
-    required this.onChanged,
-  });
+  const _TimeChip({required this.value, required this.onChanged});
 
   final int value;
   final void Function(int) onChanged;
@@ -592,36 +567,27 @@ class _TimeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
       decoration: BoxDecoration(
-        color: colorScheme.primaryContainer,
+        color: cs.primaryContainer,
         borderRadius: BorderRadius.circular(AppRadius.full),
       ),
       child: DropdownButton<int>(
         value: _options.contains(value) ? value : 5,
         underline: const SizedBox.shrink(),
         isDense: true,
-        icon: Icon(
-          Icons.arrow_drop_down_rounded,
-          size: 18,
-          color: colorScheme.onPrimaryContainer,
-        ),
+        icon: Icon(Icons.arrow_drop_down_rounded,
+            size: 18, color: cs.onPrimaryContainer),
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.w700,
-            ),
+            color: cs.onPrimaryContainer, fontWeight: FontWeight.w700),
         items: _options
-            .map(
-              (m) => DropdownMenuItem(
-                value: m,
-                child: Text(m == 0 ? 'At time' : '$m min'),
-              ),
-            )
+            .map((m) => DropdownMenuItem(
+                  value: m,
+                  child: Text(m == 0 ? 'At time' : '$m min'),
+                ))
             .toList(),
         onChanged: (v) {
           if (v != null) onChanged(v);
@@ -637,32 +603,25 @@ class _TimeChip extends StatelessWidget {
 
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({required this.title});
-
   final String title;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.lg,
-        AppSpacing.lg,
-        AppSpacing.xs,
-      ),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-            ),
-      ),
+          AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xs),
+      child: Text(title.toUpperCase(),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+              )),
     );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// INFO ROW — used in info card
+// INFO ROW
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _InfoRow extends StatelessWidget {
@@ -678,7 +637,7 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -686,30 +645,27 @@ class _InfoRow extends StatelessWidget {
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: colorScheme.primary.withOpacity(0.12),
+            color: cs.primary.withOpacity(0.12),
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
-          child: Icon(icon, size: 16, color: colorScheme.primary),
+          child: Icon(icon, size: 16, color: cs.primary),
         ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
+              Text(title,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 2),
-              Text(
-                description,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                      height: 1.4,
-                    ),
-              ),
+              Text(description,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: cs.onSurfaceVariant, height: 1.4)),
             ],
           ),
         ),

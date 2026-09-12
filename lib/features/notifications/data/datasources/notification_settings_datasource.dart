@@ -21,7 +21,7 @@ final class NotificationSettingsDataSourceImpl
 
   final SharedPreferences _prefs;
 
-  static const _key = 'notification_settings_v1';
+  static const _key = 'notification_settings_v2';
 
   @override
   Future<NotificationSettingsEntity> getSettings() async {
@@ -61,6 +61,7 @@ final class NotificationSettingsDataSourceImpl
           for (final entry in settings.prayerConfigs.entries)
             entry.key.identifier: {
               'enabled': entry.value.enabled,
+              'adhanEnabled': entry.value.adhanEnabled,
               'minutesBefore': entry.value.minutesBefore,
               'minutesAfter': entry.value.minutesAfter,
               'soundEnabled': entry.value.soundEnabled,
@@ -78,22 +79,23 @@ final class NotificationSettingsDataSourceImpl
     final configs = <PrayerType, PrayerNotificationConfig>{};
 
     for (final type in PrayerTypeExtension.obligatory) {
-      final configData = configsMap[type.identifier] as Map<String, dynamic>?;
+      final d = configsMap[type.identifier] as Map<String, dynamic>?;
 
-      if (configData == null) {
+      if (d == null) {
         configs[type] = PrayerNotificationConfig.defaultFor(type);
         continue;
       }
 
       configs[type] = PrayerNotificationConfig(
         prayerType: type,
-        enabled: configData['enabled'] as bool? ?? true,
-        minutesBefore: configData['minutesBefore'] as int? ?? 0,
-        minutesAfter: configData['minutesAfter'] as int?,
-        soundEnabled: configData['soundEnabled'] as bool? ?? true,
-        vibrationEnabled: configData['vibrationEnabled'] as bool? ?? true,
-        jamaahEnabled: configData['jamaahEnabled'] as bool? ?? true,
-        minutesBeforeJamaah: configData['minutesBeforeJamaah'] as int? ?? 5,
+        enabled: d['enabled'] as bool? ?? true,
+        adhanEnabled: d['adhanEnabled'] as bool? ?? true,
+        minutesBefore: d['minutesBefore'] as int? ?? 0,
+        minutesAfter: d['minutesAfter'] as int?,
+        soundEnabled: d['soundEnabled'] as bool? ?? true,
+        vibrationEnabled: d['vibrationEnabled'] as bool? ?? true,
+        jamaahEnabled: d['jamaahEnabled'] as bool? ?? true,
+        minutesBeforeJamaah: d['minutesBeforeJamaah'] as int? ?? 5,
       );
     }
 

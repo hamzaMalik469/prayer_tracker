@@ -40,6 +40,37 @@ class QadaPage extends StatelessWidget {
 
   Widget _buildBody(
       BuildContext context, QadaProvider qada, AuthProvider auth) {
+    final fjrCount = qada.summary.pendingSortedOldestFirst
+        .where((r) => r.prayerType == PrayerType.fajr)
+        .length;
+    final zuhrCount = qada.summary.pendingSortedOldestFirst
+        .where((r) => r.prayerType == PrayerType.dhuhr)
+        .length;
+    final asrCount = qada.summary.pendingSortedOldestFirst
+        .where((r) => r.prayerType == PrayerType.asr)
+        .length;
+    final maghribCount = qada.summary.pendingSortedOldestFirst
+        .where((r) => r.prayerType == PrayerType.maghrib)
+        .length;
+    final ishaCount = qada.summary.pendingSortedOldestFirst
+        .where((r) => r.prayerType == PrayerType.isha)
+        .length;
+    final completedFjrCount = qada.summary.completedRecords
+        .where((r) => r.prayerType == PrayerType.fajr)
+        .length;
+    final completedZuharCount = qada.summary.pendingSortedOldestFirst
+        .where((r) => r.prayerType == PrayerType.dhuhr)
+        .length;
+    final completedAsarCount = qada.summary.pendingSortedOldestFirst
+        .where((r) => r.prayerType == PrayerType.asr)
+        .length;
+    final completedMaghribCount = qada.summary.pendingSortedOldestFirst
+        .where((r) => r.prayerType == PrayerType.dhuhr)
+        .length;
+    final completedIshaCount = qada.summary.pendingSortedOldestFirst
+        .where((r) => r.prayerType == PrayerType.dhuhr)
+        .length;
+
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
@@ -49,12 +80,71 @@ class QadaPage extends StatelessWidget {
         _SummaryCard(qada: qada),
         const SizedBox(height: AppSpacing.md),
 
+        Text('Completed Qada',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.prayedColor,
+                )),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _PrayTypeCount(
+              count: completedFjrCount,
+              prayer: 'Fajar',
+            ),
+            _PrayTypeCount(
+              count: completedZuharCount,
+              prayer: 'Dhuhar',
+            ),
+            _PrayTypeCount(
+              count: completedAsarCount,
+              prayer: 'Asar',
+            ),
+            _PrayTypeCount(
+              count: completedMaghribCount,
+              prayer: 'Maghrib',
+            ),
+            _PrayTypeCount(
+              count: completedIshaCount,
+              prayer: 'Esha',
+            ),
+          ],
+        ),
+
+        const SizedBox(height: AppSpacing.sm),
         // Pending Qada list
         if (qada.summary.totalPending > 0) ...[
           Text('Pending Qada',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   )),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _PrayTypeCount(
+                count: fjrCount,
+                prayer: 'Fajar',
+              ),
+              _PrayTypeCount(
+                count: zuhrCount,
+                prayer: 'Dhuhar',
+              ),
+              _PrayTypeCount(
+                count: asrCount,
+                prayer: 'Asar',
+              ),
+              _PrayTypeCount(
+                count: maghribCount,
+                prayer: 'Maghrib',
+              ),
+              _PrayTypeCount(
+                count: ishaCount,
+                prayer: 'Esha',
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.sm),
           ...qada.summary.pendingSortedOldestFirst.map(
             (record) => Padding(
@@ -114,6 +204,57 @@ class QadaPage extends StatelessWidget {
   }
 }
 
+class _PrayTypeCount extends StatelessWidget {
+  const _PrayTypeCount({
+    super.key,
+    required this.count,
+    required this.prayer,
+  });
+
+  final int count;
+  final String prayer;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.sm,
+      ),
+      margin: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.outlineVariant,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            prayer,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            count.toString(),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 // ── How It Works ──────────────────────────────────────────────────────────────
 
 class _HowItWorksCard extends StatelessWidget {

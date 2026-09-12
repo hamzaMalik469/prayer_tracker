@@ -57,7 +57,7 @@ class PrayerCard extends StatelessWidget {
         PrayerStatus.prayed => Icons.people_alt_rounded,
         PrayerStatus.prayedLate => Icons.person,
         PrayerStatus.missed => Icons.cancel_rounded,
-        PrayerStatus.qadaCompleted => Icons.replay_circle_filled_rounded,
+        PrayerStatus.qadaCompleted => Icons.person_outline,
         PrayerStatus.notRecorded => Icons.radio_button_unchecked_rounded,
       };
 
